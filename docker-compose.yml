@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  mountain-safety-advisor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mountain_safety_advisor
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

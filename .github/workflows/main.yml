@@ -1,0 +1,111 @@
+name: CI/CD Pipeline - Asesor de Seguridad en Alta Montaña
+
+on:
+  pull_request:
+    branches:
+      - development
+      - main
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - development
+
+jobs:
+  # -------------------------------------------------------------
+  # FASE 1: Verificación de Código y Pruebas Unitarias
+  # -------------------------------------------------------------
+  validate-and-test:
+    name: Lint & Validation (FastAPI & Gemini Logic)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Entorno Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar Dependencias del Backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validar Sintaxis e Integridad de Módulos
+        run: |
+          python -m py_compile main.py
+          echo "Compilación y chequeo de sintaxis finalizado con éxito."
+
+      - name: Simulación de Test de Endpoint y Prompt Template
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python -c "
+          import main
+          print('FastAPI app instanciada:', main.app.title)
+          assert 'Actúa como un especialista en seguridad en montaña' in main.SYSTEM_PROMPT
+          print('System prompt validado con éxito.')
+          "
+
+  # -------------------------------------------------------------
+  # FASE 2: Construcción de Imagen Docker
+  # (Requiere validación exitosa previa)
+  # -------------------------------------------------------------
+  docker-build:
+    name: Build Docker Image
+    needs: validate-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir Imagen Docker de Alta Montaña
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: grupo1/mountain-safety-advisor:latest
+
+  # -------------------------------------------------------------
+  # FASE 3: Despliegue en Vercel
+  # (Se activa en merge a main o según aprobación de deployment)
+  # -------------------------------------------------------------
+  deploy-vercel:
+    name: Deploy to Vercel (Production)
+    needs: [validate-and-test, docker-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js para Vercel CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Extraer Información del Entorno Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+
+      - name: Construir Artefactos del Proyecto en Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token=$VERCEL_TOKEN
+
+      - name: Desplegar a Producción en Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN

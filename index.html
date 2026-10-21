@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asesor de Seguridad en Alta Montaña | Dashboard Adminator</title>
+  <!-- Google Fonts: Inter / Roboto -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --adminator-sidebar-bg: #212529;
+      --adminator-sidebar-hover: #2c3238;
+      --adminator-primary: #0d6efd;
+      --adminator-success: #198754;
+      --adminator-warning: #ffc107;
+      --adminator-danger: #dc3545;
+      --adminator-body-bg: #f8f9fa;
+      --adminator-card-bg: #ffffff;
+      --adminator-border: #e9ecef;
+      --adminator-text-main: #333333;
+      --adminator-text-muted: #6c757d;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--adminator-body-bg);
+      color: var(--adminator-text-main);
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Layout Wrapper */
+    .app-wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar - Adminator Style */
+    .sidebar {
+      width: 260px;
+      background-color: var(--adminator-sidebar-bg);
+      color: #adb5bd;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-brand {
+      padding: 1.25rem 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-brand i {
+      color: #0dcaf0;
+      font-size: 1.3rem;
+    }
+
+    .sidebar-menu {
+      list-style: none;
+      padding: 1rem 0;
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    .sidebar-item {
+      margin-bottom: 0.25rem;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.75rem 1.5rem;
+      color: #adb5bd;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-link:hover, .sidebar-link.active {
+      color: #ffffff;
+      background-color: var(--adminator-sidebar-hover);
+      border-left: 4px solid #0dcaf0;
+    }
+
+    .sidebar-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.75rem;
+      color: #6c757d;
+    }
+
+    /* Main Content Area */
+    .main-panel {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    /* Top Navbar */
+    .top-navbar {
+      background: #ffffff;
+      border-bottom: 1px solid var(--adminator-border);
+      padding: 0.85rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    .navbar-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #212529;
+      margin: 0;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 50rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Content Container */
+    .content-area {
+      padding: 2rem;
+    }
+
+    /* Cards */
+    .card-adminator {
+      background: #ffffff;
+      border: 1px solid var(--adminator-border);
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+
+    .card-adminator-header {
+      padding: 1rem 1.5rem;
+      background-color: #ffffff;
+      border-bottom: 1px solid var(--adminator-border);
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-adminator-body {
+      padding: 1.5rem;
+    }
+
+    /* Preset Buttons */
+    .preset-pill {
+      font-size: 0.75rem;
+      cursor: pointer;
+      border: 1px solid #ced4da;
+      background: #f8f9fa;
+      padding: 0.3rem 0.7rem;
+      border-radius: 1rem;
+      transition: all 0.2s ease;
+      display: inline-block;
+      margin-right: 0.35rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .preset-pill:hover {
+      background: #e9ecef;
+      border-color: #0dcaf0;
+      color: #055160;
+    }
+
+    /* Verdict Alert Boxes */
+    .verdict-box {
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .verdict-box.verdict-go {
+      background-color: #d1e7dd;
+      border: 2px solid #0f5132;
+      color: #0f5132;
+    }
+
+    .verdict-box.verdict-conditional {
+      background-color: #fff3cd;
+      border: 2px solid #ffc107;
+      color: #664d03;
+    }
+
+    .verdict-box.verdict-no_go {
+      background-color: #f8d7da;
+      border: 2px solid #842029;
+      color: #842029;
+    }
+
+    .verdict-icon {
+      font-size: 2.75rem;
+      line-height: 1;
+    }
+
+    .verdict-text h3 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .verdict-text p {
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    /* Structured Section Cards */
+    .report-section {
+      background: #fcfcfd;
+      border-left: 4px solid #0d6efd;
+      border-radius: 0.35rem;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      border: 1px solid #eef2f6;
+      border-left-width: 4px;
+    }
+
+    .report-section h5 {
+      color: #0f172a;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .report-section p, .report-section li {
+      font-size: 0.92rem;
+      line-height: 1.6;
+      color: #334155;
+    }
+
+    /* Weather pill metrics */
+    .weather-stat-card {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 0.5rem;
+      padding: 0.85rem;
+      text-align: center;
+    }
+
+    .weather-stat-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #212529;
+    }
+
+    .weather-stat-lbl {
+      font-size: 0.75rem;
+      color: #6c757d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      display: none;
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+
+    .spinner-compass {
+      font-size: 2.5rem;
+      color: #0d6efd;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 991px) {
+      .app-wrapper { flex-direction: column; }
+      .sidebar { width: 100%; }
+      .content-area { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+  <!-- SIDEBAR (ADMINATOR STYLE) -->
+  <aside class="sidebar">
+    <a href="#" class="sidebar-brand">
+      <i class="fa-solid fa-mountain-sun"></i>
+      <span>Alta Montaña IA</span>
+    </a>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item">
+        <a href="#dashboard" class="sidebar-link active">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Dashboard Viabilidad</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="#form-section" class="sidebar-link">
+          <i class="fa-solid fa-compass"></i>
+          <span>Nuevo Análisis</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="#weather-tab" class="sidebar-link">
+          <i class="fa-solid fa-cloud-sun-rain"></i>
+          <span>Diagnóstico Nival</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="#about-group" class="sidebar-link">
+          <i class="fa-solid fa-users"></i>
+          <span>Grupo 1 - Proyecto</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div><strong>Curso:</strong> Prompt Engineering</div>
+      <div><strong>Modelo:</strong> Google Gemini Pro</div>
+      <div><strong>Backend:</strong> FastAPI + Uvicorn</div>
+    </div>
+  </aside>
+
+  <!-- MAIN PANEL -->
+  <main class="main-panel">
+    <!-- TOP NAVBAR -->
+    <header class="top-navbar">
+      <div class="d-flex align-items-center gap-3">
+        <h1 class="navbar-title">
+          <i class="fa-solid fa-person-hiking text-primary me-2"></i>Asesor de Seguridad en Alta Montaña
+        </h1>
+        <span class="badge bg-secondary d-none d-md-inline">Versión 1.0</span>
+      </div>
+
+      <div class="d-flex align-items-center gap-3">
+        <div id="systemHealthBadge" class="badge-status bg-success-subtle text-success border border-success-subtle">
+          <i class="fa-solid fa-circle-check"></i>
+          <span id="systemHealthText">Conectando...</span>
+        </div>
+        <div class="text-muted small d-none d-lg-block">
+          <i class="fa-regular fa-calendar me-1"></i><span id="currentDateDisplay"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT AREA -->
+    <div class="content-area">
+      <!-- HERO BANNER -->
+      <div class="card-adminator bg-light border-0 shadow-sm p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h4 class="fw-bold mb-1 text-dark">Motor de Decisión Experta "Go / No Go"</h4>
+            <p class="text-muted small mb-0">
+              Correlación nivometeorológica de las últimas 2 semanas y proyección a 7 días procesada por <strong>Gemini Pro</strong> según escala EAWS.
+            </p>
+          </div>
+          <div>
+            <span class="badge bg-primary px-3 py-2"><i class="fa-solid fa-shield-halved me-1"></i> Protocolo de Seguridad UIAA / EAWS</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- FORMULARIO DE ENTRADA -->
+        <div class="col-lg-5" id="form-section">
+          <div class="card-adminator">
+            <div class="card-adminator-header">
+              <span><i class="fa-solid fa-sliders me-2 text-primary"></i>Parámetros de la Expedición</span>
+              <span class="text-muted small">PASO 3</span>
+            </div>
+            <div class="card-adminator-body">
+              <!-- Preset Mountains -->
+              <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold">Rutas Pre-configuradas (Carga Rápida):</label>
+                <div>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Cerro El Plomo', -33.2319, -70.2172, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar')">
+                    🇨🇱 Cerro El Plomo (5.424m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Aconcagua', -32.6532, -70.0109, 6961, 'Ruta Normal Cara Norte', 'Expedicionario')">
+                    🇦🇷 Aconcagua (6.961m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Volcán Villarrica', -39.4203, -71.9397, 2847, 'Ruta Norte por Centro de Ski', 'Intermedio con cramponaje')">
+                    🇨🇱 V. Villarrica (2.847m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Mont Blanc', 45.8326, 6.8652, 4808, 'Ruta de los Cuatromiles / Gouter', 'Alpinismo Clásico')">
+                    🇫🇷 Mont Blanc (4.808m)
+                  </button>
+                </div>
+              </div>
+
+              <form id="expeditionForm">
+                <!-- Nombre Cerro -->
+                <div class="mb-3">
+                  <label for="mountainName" class="form-label fw-semibold">Nombre Cerro / Montaña <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-mountain"></i></span>
+                    <input type="text" class="form-control" id="mountainName" required placeholder="Ej: Cerro El Plomo">
+                  </div>
+                </div>
+
+                <!-- Coordenadas Lat / Lon -->
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label for="latitude" class="form-label fw-semibold">Latitud <span class="text-danger">*</span></label>
+                    <input type="number" step="0.0001" class="form-control" id="latitude" required placeholder="-33.2319">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="longitude" class="form-label fw-semibold">Longitud <span class="text-danger">*</span></label>
+                    <input type="number" step="0.0001" class="form-control" id="longitude" required placeholder="-70.2172">
+                  </div>
+                </div>
+
+                <!-- Altitud y Fecha Objetivo -->
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label for="altitude" class="form-label fw-semibold">Altitud (m.s.n.m.) <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                      <input type="number" class="form-control" id="altitude" required placeholder="5424">
+                      <span class="input-group-text">m</span>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="targetDate" class="form-label fw-semibold">Fecha Objetivo <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="targetDate" required>
+                  </div>
+                </div>
+
+                <!-- Parámetros Opcionales -->
+                <div class="mb-3">
+                  <label for="route" class="form-label fw-semibold">Ruta Prevista (Opcional)</label>
+                  <input type="text" class="form-control" id="route" placeholder="Ej: Ruta Normal por La Hoya">
+                </div>
+
+                <div class="mb-3">
+                  <label for="groupLevel" class="form-label fw-semibold">Nivel Técnico del Grupo (Opcional)</label>
+                  <input type="text" class="form-control" id="groupLevel" placeholder="Ej: Intermedio, autonomía en rescate">
+                </div>
+
+                <button type="submit" id="btnSubmit" class="btn btn-primary w-100 py-2 fw-semibold">
+                  <i class="fa-solid fa-wand-magic-sparkles me-2"></i>Evaluar Viabilidad con Gemini Pro
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- ABOUT GRUPO 1 CARD -->
+          <div class="card-adminator" id="about-group">
+            <div class="card-adminator-header">
+              <span><i class="fa-solid fa-graduation-cap me-2 text-primary"></i>Proyecto Grupo 1</span>
+              <span class="badge bg-light text-dark border">Equipo Docente</span>
+            </div>
+            <div class="card-adminator-body small">
+              <p class="mb-2"><strong>Curso:</strong> Advance Prompt Engineering for Generative IA</p>
+              <p class="mb-2"><strong>Integrantes:</strong></p>
+              <ul class="mb-2 ps-3">
+                <li>Julio Soto Sánchez</li>
+                <li>Miguel Pedreros Olate</li>
+                <li>Francisco Parada</li>
+                <li>Francisco Bahamondes</li>
+              </ul>
+              <div class="text-muted border-top pt-2 mt-2">
+                <span><strong>Coordinadora:</strong> Berta Soto Jara</span> | 
+                <span><strong>Director Académico:</strong> Ahmad Armoush</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANEL DE RESULTADOS / REPORTE -->
+        <div class="col-lg-7">
+          <!-- LOADING STATE -->
+          <div id="loadingBox" class="card-adminator loading-overlay">
+            <i class="fa-solid fa-compass spinner-compass mb-3"></i>
+            <h5 class="fw-bold text-dark">Generando Análisis Nivológico con IA...</h5>
+            <p class="text-muted small" id="loadingStep">Consultando datos meteorológicos (Open-Meteo)...</p>
+            <div class="progress w-50 mx-auto" style="height: 6px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+            </div>
+          </div>
+
+          <!-- INITIAL PLACEHOLDER -->
+          <div id="initialPlaceholder" class="card-adminator text-center p-5">
+            <i class="fa-solid fa-mountain text-muted fa-3x mb-3"></i>
+            <h5 class="fw-bold">Esperando Parámetros de la Expedición</h5>
+            <p class="text-muted small mb-3">
+              Completa el formulario a la izquierda o selecciona una de las cumbres pre-configuradas para iniciar la recopilación de datos meteorológicos y la evaluación experta con Gemini Pro.
+            </p>
+            <button class="btn btn-outline-primary btn-sm mx-auto" onclick="loadPreset('Cerro El Plomo', -33.2319, -70.2172, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar')">
+              <i class="fa-solid fa-bolt me-1"></i>Probar con Cerro El Plomo (Demo)
+            </button>
+          </div>
+
+          <!-- RESULT CONTAINER -->
+          <div id="resultsContainer" style="display: none;">
+            <!-- VEREDICTO BOX -->
+            <div id="verdictAlert" class="verdict-box verdict-go">
+              <div class="verdict-icon" id="verdictIcon">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+              <div class="verdict-text">
+                <h3 id="verdictTitle">EXPEDICIÓN RECOMENDADA (Go)</h3>
+                <p id="verdictSubtitle">Las condiciones nivometeorológicas analizadas permiten una progresión con márgenes de seguridad estándar.</p>
+              </div>
+            </div>
+
+            <!-- METRIC STATS ROW -->
+            <div class="row g-2 mb-3" id="weatherMetricsRow">
+              <div class="col-4">
+                <div class="weather-stat-card">
+                  <div class="weather-stat-val text-primary" id="statElevation">5.424 m</div>
+                  <div class="weather-stat-lbl">Altitud Cumbre</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="weather-stat-card">
+                  <div class="weather-stat-val text-danger" id="statWind">45 km/h</div>
+                  <div class="weather-stat-lbl">Ráfagas Est.</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="weather-stat-card">
+                  <div class="weather-stat-val text-info" id="statSource">Open-Meteo</div>
+                  <div class="weather-stat-lbl">Contexto Nival</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- INFORME COMPLETO GEMINI PRO -->
+            <div class="card-adminator">
+              <div class="card-adminator-header">
+                <div>
+                  <i class="fa-solid fa-file-contract text-primary me-2"></i>
+                  <span>Informe Técnico Especializado</span>
+                  <span class="badge bg-dark ms-2" id="badgeModelUsed">gemini-pro</span>
+                </div>
+                <div>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="copyReportToClipboard()">
+                    <i class="fa-regular fa-copy me-1"></i>Copiar
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+                    <i class="fa-solid fa-print me-1"></i>Imprimir
+                  </button>
+                </div>
+              </div>
+              <div class="card-adminator-body">
+                <!-- SECCIÓN 1 -->
+                <div class="report-section" id="section1">
+                  <h5><i class="fa-solid fa-snowflake text-info"></i>1. Estado de la Nieve y Viabilidad del Ascenso</h5>
+                  <div id="contentSection1" class="text-muted">Cargando análisis...</div>
+                </div>
+
+                <!-- SECCIÓN 2 -->
+                <div class="report-section" id="section2" style="border-left-color: #ffc107;">
+                  <h5><i class="fa-solid fa-triangle-exclamation text-warning"></i>2. Nivel de Riesgo General (EAWS)</h5>
+                  <div id="contentSection2" class="text-muted">Cargando análisis...</div>
+                </div>
+
+                <!-- SECCIÓN 3 -->
+                <div class="report-section" id="section3" style="border-left-color: #198754;">
+                  <h5><i class="fa-solid fa-flag-checkered text-success"></i>3. Recomendación Final y Criterio "Go / No Go"</h5>
+                  <div id="contentSection3" class="text-muted">Cargando análisis...</div>
+                </div>
+
+                <!-- COLLAPSIBLE METEOROLOGICAL CONTEXT -->
+                <div class="accordion mt-3" id="accordionWeather">
+                  <div class="accordion-item border-0">
+                    <h2 class="accordion-header">
+                      <button class="accordion-button collapsed bg-light text-dark fw-semibold small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWeather">
+                        <i class="fa-solid fa-database me-2 text-primary"></i>Ver Datos Crudos Meteorológicos (14 días previos + 7 días pronóstico)
+                      </button>
+                    </h2>
+                    <div id="collapseWeather" class="accordion-collapse collapse" data-bs-parent="#accordionWeather">
+                      <div class="accordion-body bg-light">
+                        <pre class="bg-white p-3 rounded border small text-dark" style="max-height: 250px; overflow-y: auto;" id="rawWeatherDump"></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Bootstrap 5 JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  // Inicialización de fecha por defecto (mañana)
+  document.addEventListener("DOMContentLoaded", () => {
+    const today = new Date();
+    document.getElementById("currentDateDisplay").innerText = today.toLocaleDateString("es-ES", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric"
+    });
+
+    const targetDateInput = document.getElementById("targetDate");
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 2);
+    targetDateInput.value = tomorrow.toISOString().split("T")[0];
+
+    checkSystemHealth();
+  });
+
+  // Chequeo de salud del backend
+  async function checkSystemHealth() {
+    const healthBadge = document.getElementById("systemHealthBadge");
+    const healthText = document.getElementById("systemHealthText");
+    try {
+      const res = await fetch("/api/health");
+      if (res.ok) {
+        const data = await res.json();
+        healthBadge.className = "badge-status bg-success-subtle text-success border border-success-subtle";
+        healthText.innerText = data.gemini_api_configured ? "Backend & Gemini Listo" : "Backend Listo (Modo Simulación)";
+      } else {
+        throw new Error("HTTP " + res.status);
+      }
+    } catch (err) {
+      healthBadge.className = "badge-status bg-warning-subtle text-warning border border-warning-subtle";
+      healthText.innerText = "Backend Local Activo";
+    }
+  }
+
+  // Carga de Preset de montaña
+  function loadPreset(name, lat, lon, alt, route, level) {
+    document.getElementById("mountainName").value = name;
+    document.getElementById("latitude").value = lat;
+    document.getElementById("longitude").value = lon;
+    document.getElementById("altitude").value = alt;
+    document.getElementById("route").value = route;
+    document.getElementById("groupLevel").value = level;
+  }
+
+  // Manejador del Formulario
+  document.getElementById("expeditionForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const mountainName = document.getElementById("mountainName").value.trim();
+    const latitude = parseFloat(document.getElementById("latitude").value);
+    const longitude = parseFloat(document.getElementById("longitude").value);
+    const altitude = parseFloat(document.getElementById("altitude").value);
+    const targetDate = document.getElementById("targetDate").value;
+    const route = document.getElementById("route").value.trim();
+    const groupLevel = document.getElementById("groupLevel").value.trim();
+
+    // Mostrar spinner
+    document.getElementById("initialPlaceholder").style.display = "none";
+    document.getElementById("resultsContainer").style.display = "none";
+    document.getElementById("loadingBox").style.display = "block";
+
+    const loadingStep = document.getElementById("loadingStep");
+    loadingStep.innerText = "Consultando datos meteorológicos de Open-Meteo...";
+
+    try {
+      setTimeout(() => {
+        if (loadingStep) loadingStep.innerText = "Compilando diagnóstico nival de 14 días y proyección a 7 días...";
+      }, 900);
+
+      setTimeout(() => {
+        if (loadingStep) loadingStep.innerText = "Invocando modelo Gemini Pro con System Prompt técnico...";
+      }, 1800);
+
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mountain_name: mountainName,
+          latitude: latitude,
+          longitude: longitude,
+          altitude: altitude,
+          target_date: targetDate,
+          route: route,
+          group_technical_level: groupLevel
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Error en el servidor");
+      }
+
+      const data = await response.json();
+      renderResults(data);
+
+    } catch (error) {
+      alert("Error al procesar el análisis de viabilidad: " + error.message);
+      document.getElementById("loadingBox").style.display = "none";
+      document.getElementById("initialPlaceholder").style.display = "block";
+    }
+  });
+
+  // Renderizado de Resultados
+  function renderResults(data) {
+    document.getElementById("loadingBox").style.display = "none";
+    document.getElementById("resultsContainer").style.display = "block";
+
+    // Actualizar métricas
+    document.getElementById("statElevation").innerText = data.altitude.toLocaleString() + " m";
+    document.getElementById("statSource").innerText = data.weather_context.source ? "Open-Meteo" : "Meteo Nival";
+    document.getElementById("badgeModelUsed").innerText = data.model_used;
+
+    // Configurar Alert de Veredicto
+    const verdictAlert = document.getElementById("verdictAlert");
+    const verdictIcon = document.getElementById("verdictIcon");
+    const verdictTitle = document.getElementById("verdictTitle");
+    const verdictSubtitle = document.getElementById("verdictSubtitle");
+
+    if (data.verdict === "GO") {
+      verdictAlert.className = "verdict-box verdict-go";
+      verdictIcon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+      verdictTitle.innerText = "EXPEDICIÓN RECOMENDADA (GO)";
+      verdictSubtitle.innerText = "El análisis meteorológico e histórico nival indica condiciones favorables con margen operativo adecuado.";
+    } else if (data.verdict === "NO_GO") {
+      verdictAlert.className = "verdict-box verdict-no_go";
+      verdictIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+      verdictTitle.innerText = "NO RECOMENDADA / ABORTAR (NO GO)";
+      verdictSubtitle.innerText = "Riesgo extremo por manto inestable, frente de tormenta o ráfagas incompatibles con la progresión segura.";
+    } else {
+      verdictAlert.className = "verdict-box verdict-conditional";
+      verdictIcon.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i>';
+      verdictTitle.innerText = "RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA";
+      verdictSubtitle.innerText = "Se requiere cumplimiento estricto de horarios límite, aristas protegidas y equipamiento técnico completo.";
+    }
+
+    // Parsear los 3 apartados del reporte
+    parseReportSections(data.analysis_report);
+
+    // Volcado de datos meteorológicos
+    document.getElementById("rawWeatherDump").innerText = JSON.stringify(data.weather_context, null, 2);
+  }
+
+  function parseReportSections(fullText) {
+    // Expresiones regulares para segmentar los 3 apartados del Prompt Maestro
+    let sec1 = "";
+    let sec2 = "";
+    let sec3 = "";
+
+    const p1 = fullText.indexOf("1. Estado de la Nieve");
+    const p2 = fullText.indexOf("2. Nivel de Riesgo General");
+    const p3 = fullText.indexOf("3. Recomendación Final");
+
+    if (p1 !== -1 && p2 !== -1 && p3 !== -1) {
+      sec1 = fullText.substring(p1, p2).replace(/\*\*1\.\s*Estado de la Nieve y Viabilidad del Ascenso:\*\*/i, "").trim();
+      sec2 = fullText.substring(p2, p3).replace(/\*\*2\.\s*Nivel de Riesgo General:\*\*/i, "").trim();
+      sec3 = fullText.substring(p3).replace(/\*\*3\.\s*Recomendación Final y Criterio 'Go \/ No Go':\*\*/i, "").trim();
+    } else {
+      // Fallback si la IA estructuró con ligeras variantes
+      sec1 = fullText;
+      sec2 = "Consulte el detalle completo en el apartado principal.";
+      sec3 = "Consulte las recomendaciones finales en el texto consolidado.";
+    }
+
+    document.getElementById("contentSection1").innerHTML = formatMarkdownToHtml(sec1);
+    document.getElementById("contentSection2").innerHTML = formatMarkdownToHtml(sec2);
+    document.getElementById("contentSection3").innerHTML = formatMarkdownToHtml(sec3);
+  }
+
+  function formatMarkdownToHtml(text) {
+    if (!text) return "";
+    let html = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+    return html;
+  }
+
+  function copyReportToClipboard() {
+    const s1 = document.getElementById("contentSection1").innerText;
+    const s2 = document.getElementById("contentSection2").innerText;
+    const s3 = document.getElementById("contentSection3").innerText;
+    const full = `INFORME TÉCNICO DE SEGURIDAD EN ALTA MONTAÑA\n\n1. Estado de la Nieve y Viabilidad del Ascenso:\n${s1}\n\n2. Nivel de Riesgo General:\n${s2}\n\n3. Recomendación Final:\n${s3}`;
+    navigator.clipboard.writeText(full).then(() => {
+      alert("Informe copiado al portapapeles.");
+    });
+  }
+</script>
+
+</body>
+</html>

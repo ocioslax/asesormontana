@@ -382,7 +382,7 @@
           <div>
             <h4 class="fw-bold mb-1 text-dark">Motor de Decisión Experta "Go / No Go"</h4>
             <p class="text-muted small mb-0">
-              Correlación nivometeorológica de las últimas 2 semanas y proyección a 7 días procesada por <strong>Gemini Pro</strong> según escala EAWS.
+              Correlación nivometeorológica de las <strong>2 semanas previas a la fecha de consulta</strong> y <strong>pronóstico hasta la fecha solicitada</strong> procesada por <strong>Gemini Pro</strong> según escala EAWS.
             </p>
           </div>
           <div>
@@ -473,28 +473,6 @@
               </form>
             </div>
           </div>
-
-          <!-- ABOUT GRUPO 1 CARD -->
-          <div class="card-adminator" id="about-group">
-            <div class="card-adminator-header">
-              <span><i class="fa-solid fa-graduation-cap me-2 text-primary"></i>Proyecto Grupo 1</span>
-              <span class="badge bg-light text-dark border">Equipo Docente</span>
-            </div>
-            <div class="card-adminator-body small">
-              <p class="mb-2"><strong>Curso:</strong> Advance Prompt Engineering for Generative IA</p>
-              <p class="mb-2"><strong>Integrantes:</strong></p>
-              <ul class="mb-2 ps-3">
-                <li>Julio Soto Sánchez</li>
-                <li>Miguel Pedreros Olate</li>
-                <li>Francisco Parada</li>
-                <li>Francisco Bahamondes</li>
-              </ul>
-              <div class="text-muted border-top pt-2 mt-2">
-                <span><strong>Coordinadora:</strong> Berta Soto Jara</span> | 
-                <span><strong>Director Académico:</strong> Ahmad Armoush</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- PANEL DE RESULTADOS / REPORTE -->
@@ -536,22 +514,28 @@
 
             <!-- METRIC STATS ROW -->
             <div class="row g-2 mb-3" id="weatherMetricsRow">
-              <div class="col-4">
+              <div class="col-md-3 col-6">
                 <div class="weather-stat-card">
                   <div class="weather-stat-val text-primary" id="statElevation">5.424 m</div>
                   <div class="weather-stat-lbl">Altitud Cumbre</div>
                 </div>
               </div>
-              <div class="col-4">
+              <div class="col-md-3 col-6">
                 <div class="weather-stat-card">
                   <div class="weather-stat-val text-danger" id="statWind">45 km/h</div>
                   <div class="weather-stat-lbl">Ráfagas Est.</div>
                 </div>
               </div>
-              <div class="col-4">
+              <div class="col-md-3 col-6">
                 <div class="weather-stat-card">
-                  <div class="weather-stat-val text-info" id="statSource">Open-Meteo</div>
-                  <div class="weather-stat-lbl">Contexto Nival</div>
+                  <div class="weather-stat-val text-info" id="statPastRange">14 días</div>
+                  <div class="weather-stat-lbl">Historial Previo</div>
+                </div>
+              </div>
+              <div class="col-md-3 col-6">
+                <div class="weather-stat-card">
+                  <div class="weather-stat-val text-success" id="statForecastRange">Hasta Fecha</div>
+                  <div class="weather-stat-lbl">Pronóstico Objetivo</div>
                 </div>
               </div>
             </div>
@@ -597,7 +581,7 @@
                   <div class="accordion-item border-0">
                     <h2 class="accordion-header">
                       <button class="accordion-button collapsed bg-light text-dark fw-semibold small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWeather">
-                        <i class="fa-solid fa-database me-2 text-primary"></i>Ver Datos Crudos Meteorológicos (14 días previos + 7 días pronóstico)
+                        <i class="fa-solid fa-database me-2 text-primary"></i>Ver Datos Crudos Meteorológicos (2 semanas previas a consulta + pronóstico hasta fecha solicitada)
                       </button>
                     </h2>
                     <div id="collapseWeather" class="accordion-collapse collapse" data-bs-parent="#accordionWeather">
@@ -684,15 +668,15 @@
     document.getElementById("loadingBox").style.display = "block";
 
     const loadingStep = document.getElementById("loadingStep");
-    loadingStep.innerText = "Consultando datos meteorológicos de Open-Meteo...";
+    loadingStep.innerText = `Consultando datos meteorológicos (2 semanas previas a la consulta y pronóstico hasta ${targetDate})...`;
 
     try {
       setTimeout(() => {
-        if (loadingStep) loadingStep.innerText = "Compilando diagnóstico nival de 14 días y proyección a 7 días...";
+        if (loadingStep) loadingStep.innerText = "Compilando diagnóstico de 2 semanas previas y evolución nivometeorológica hasta fecha objetivo...";
       }, 900);
 
       setTimeout(() => {
-        if (loadingStep) loadingStep.innerText = "Invocando modelo Gemini Pro con System Prompt técnico...";
+        if (loadingStep) loadingStep.innerText = "Invocando modelo Gemini Pro con System Prompt técnico y correlación temporal...";
       }, 1800);
 
       const response = await fetch("/api/analyze", {
@@ -729,9 +713,25 @@
     document.getElementById("loadingBox").style.display = "none";
     document.getElementById("resultsContainer").style.display = "block";
 
+    const weather = data.weather_context || {};
+    const pastInfo = weather.past_14_days || {};
+    const forecastInfo = weather.forecast_until_target || weather.forecast_7_days || {};
+
     // Actualizar métricas
     document.getElementById("statElevation").innerText = data.altitude.toLocaleString() + " m";
-    document.getElementById("statSource").innerText = data.weather_context.source ? "Open-Meteo" : "Meteo Nival";
+    
+    // Ráfagas estimadas
+    const gusts = forecastInfo.wind_gusts_max_kmh || pastInfo.wind_gusts_max_kmh || [45];
+    const maxGust = Math.max(...gusts.filter(g => typeof g === 'number'), 40);
+    document.getElementById("statWind").innerText = Math.round(maxGust) + " km/h";
+
+    // Rangos de fecha
+    const pastCount = pastInfo.dates ? pastInfo.dates.length : 14;
+    document.getElementById("statPastRange").innerText = pastCount + " días prev.";
+    
+    const forecastCount = forecastInfo.dates ? forecastInfo.dates.length : "Hasta obj.";
+    document.getElementById("statForecastRange").innerText = (typeof forecastCount === 'number' ? forecastCount + " días" : forecastCount);
+    
     document.getElementById("badgeModelUsed").innerText = data.model_used;
 
     // Configurar Alert de Veredicto
@@ -813,3 +813,4 @@
 
 </body>
 </html>
+

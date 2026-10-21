@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   mountain-safety-advisor:
     build:
@@ -11,6 +9,10 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PORT=8000
+    volumes:
+      - ./main.py:/app/main.py
+      - ./index.html:/app/index.html
+      - ./.env:/app/.env
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

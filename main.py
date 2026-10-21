@@ -70,13 +70,17 @@ class ExpeditionRequest(BaseModel):
 
 class WeatherSummary(BaseModel):
     source: str
+    consultation_date: str
+    target_date: str
     past_14_days: Dict[str, Any]
-    forecast_7_days: Dict[str, Any]
+    forecast_until_target: Dict[str, Any]
+    forecast_7_days: Optional[Dict[str, Any]] = None  # Retrocompatibilidad
     target_day_overview: Dict[str, Any]
 
 class ViabilityResponse(BaseModel):
     success: bool
     mountain_name: str
+    consultation_date: Optional[str] = None
     target_date: str
     altitude: float
     coordinates: Dict[str, float]
@@ -91,15 +95,24 @@ def generate_fallback_weather(latitude: float, longitude: float, altitude: float
     """
     Genera un conjunto de datos meteorológicos sintéticos realistas basado en altitud
     en caso de que Open-Meteo no esté disponible o no haya conectividad externa.
+    Cubre:
+      1. Dos semanas previas a la fecha de consulta.
+      2. Pronóstico del tiempo hasta la fecha solicitada.
     """
+    consultation_date = date.today()
+    try:
+        target_d = datetime.strptime(target_date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        target_d = consultation_date + timedelta(days=7)
+
     # Gradiente térmico aproximado: -6.5°C por cada 1000m
     base_temp = 18.0 - (altitude / 1000.0 * 6.5)
     
-    past_dates = [(date.today() - timedelta(days=i)).isoformat() for i in range(14, 0, -1)]
-    future_dates = [(date.today() + timedelta(days=i)).isoformat() for i in range(0, 8)]
-
-    # Historial sintético de 14 días
+    # 1. Dos semanas previas a la fecha de consulta
+    past_dates = [(consultation_date - timedelta(days=i)).isoformat() for i in range(14, 0, -1)]
     past_14 = {
+        "description": "Diagnóstico del clima de 2 semanas previas a la fecha de consulta",
+        "date_range": f"{past_dates[0]} al {past_dates[-1]}",
         "dates": past_dates,
         "temp_max_c": [round(base_temp + (i % 3) - 2.0, 1) for i in range(14)],
         "temp_min_c": [round(base_temp - 8.0 - (i % 4), 1) for i in range(14)],
@@ -108,22 +121,32 @@ def generate_fallback_weather(latitude: float, longitude: float, altitude: float
         "dominant_conditions": "Ciclo de nevadas intermitentes con vientos moderados a fuertes en cotas altas."
     }
 
-    # Pronóstico sintético de 7 días
-    forecast_7 = {
+    # 2. Pronóstico del tiempo hasta la fecha solicitada (inclusivo)
+    delta_days = (target_d - consultation_date).days
+    num_forecast_days = max(1, delta_days + 1)
+    future_dates = [(consultation_date + timedelta(days=i)).isoformat() for i in range(0, num_forecast_days)]
+
+    forecast_until_target = {
+        "description": f"Pronóstico del tiempo desde la fecha de consulta ({consultation_date}) hasta la fecha solicitada ({target_date_str})",
+        "date_range": f"{future_dates[0]} al {future_dates[-1]}",
+        "total_days": len(future_dates),
         "dates": future_dates,
-        "temp_max_c": [round(base_temp + 1.0 - (i * 0.5), 1) for i in range(8)],
-        "temp_min_c": [round(base_temp - 7.5 - (i * 0.8), 1) for i in range(8)],
-        "precipitation_probability_pct": [15, 20, 65, 80, 45, 10, 10, 5],
-        "snowfall_sum_cm": [0.0, 1.5, 14.0, 18.0, 4.0, 0.0, 0.0, 0.0],
-        "wind_gusts_max_kmh": [28.0, 42.0, 78.0, 85.0, 50.0, 25.0, 20.0, 18.0],
-        "trend": "Frente de mal tiempo aproximándose a mitad del período de pronóstico con ráfagas superiores a 70 km/h."
+        "temp_max_c": [round(base_temp + 1.0 - ((i % 5) * 0.5), 1) for i in range(len(future_dates))],
+        "temp_min_c": [round(base_temp - 7.5 - ((i % 5) * 0.8), 1) for i in range(len(future_dates))],
+        "precipitation_probability_pct": [min(95, 15 + ((i * 12) % 75)) for i in range(len(future_dates))],
+        "snowfall_sum_cm": [round(15.0 if (i % 4 == 2) else (2.0 if i % 3 == 0 else 0.0), 1) for i in range(len(future_dates))],
+        "wind_gusts_max_kmh": [round(28.0 + ((i * 7) % 55), 1) for i in range(len(future_dates))],
+        "trend": f"Evolución proyectada de temperaturas, manto nival y ráfagas hasta la fecha solicitada ({target_date_str})."
     }
 
     return {
         "source": "Sintético Calibrado por Altitud (Fallback Offline)",
+        "consultation_date": consultation_date.isoformat(),
+        "target_date": target_date_str,
         "elevation_m": altitude,
         "past_14_days": past_14,
-        "forecast_7_days": forecast_7,
+        "forecast_until_target": forecast_until_target,
+        "forecast_7_days": forecast_until_target,  # Compatibilidad
         "target_day_overview": {
             "target_date": target_date_str,
             "estimated_summit_temp_c": round(base_temp - 3.0, 1),
@@ -134,9 +157,22 @@ def generate_fallback_weather(latitude: float, longitude: float, altitude: float
 
 async def fetch_openmeteo_weather(latitude: float, longitude: float, altitude: float, target_date_str: str) -> Dict[str, Any]:
     """
-    Consulta la API libre de Open-Meteo para obtener historial de los últimos 14 días
-    y el pronóstico de los próximos 7 días con un solo endpoint.
+    Consulta la API de Open-Meteo para obtener:
+      1. Clima de dos semanas previas a la fecha de consulta (past_days=14).
+      2. Pronóstico del tiempo hasta la fecha objetivo solicitada.
     """
+    consultation_date = date.today()
+    try:
+        target_d = datetime.strptime(target_date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        target_d = consultation_date + timedelta(days=7)
+
+    delta_days = (target_d - consultation_date).days
+    # Días requeridos desde hoy hasta la fecha objetivo (inclusive)
+    requested_forecast_days = max(1, delta_days + 1)
+    # Límite máximo de pronóstico de Open-Meteo estándar es 16 días
+    api_forecast_days = min(requested_forecast_days, 16)
+
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": latitude,
@@ -151,49 +187,79 @@ async def fetch_openmeteo_weather(latitude: float, longitude: float, altitude: f
             "wind_gusts_10m_max"
         ],
         "past_days": 14,
-        "forecast_days": 8,
+        "forecast_days": api_forecast_days,
         "timezone": "auto"
     }
 
     try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
+        async with httpx.AsyncClient(timeout=7.0) as client:
             response = await client.get(url, params=params)
             if response.status_code == 200:
                 data = response.json()
                 daily = data.get("daily", {})
                 dates = daily.get("time", [])
                 
-                # Dividir en pasado (14 días) y futuro (8 días)
-                # El índice 14 corresponde usualmente al día de hoy
-                idx_today = min(14, len(dates) // 2) if len(dates) > 14 else 14
-                
+                # Las primeras 14 posiciones corresponden a las 2 semanas previas a hoy
+                idx_today = min(14, len(dates))
                 past_dates = dates[:idx_today]
                 future_dates = dates[idx_today:]
                 
+                temp_max = list(daily.get("temperature_2m_max", []))
+                temp_min = list(daily.get("temperature_2m_min", []))
+                precip = list(daily.get("precipitation_sum", []))
+                snowfall = list(daily.get("snowfall_sum", []))
+                wind_gusts = list(daily.get("wind_gusts_10m_max", []))
+
                 past_14 = {
+                    "description": "Diagnóstico del clima de 2 semanas previas a la fecha de consulta",
+                    "date_range": f"{past_dates[0]} al {past_dates[-1]}" if past_dates else "14 días previos",
                     "dates": past_dates,
-                    "temp_max_c": daily.get("temperature_2m_max", [])[:idx_today],
-                    "temp_min_c": daily.get("temperature_2m_min", [])[:idx_today],
-                    "precipitation_sum_mm": daily.get("precipitation_sum", [])[:idx_today],
-                    "snowfall_sum_cm": daily.get("snowfall_sum", [])[:idx_today],
-                    "wind_gusts_max_kmh": daily.get("wind_gusts_10m_max", [])[:idx_today],
+                    "temp_max_c": temp_max[:idx_today],
+                    "temp_min_c": temp_min[:idx_today],
+                    "precipitation_sum_mm": precip[:idx_today],
+                    "snowfall_sum_cm": snowfall[:idx_today],
+                    "wind_gusts_max_kmh": wind_gusts[:idx_today],
                 }
-                
-                forecast_7 = {
+
+                # Si la fecha solicitada excede el límite directo de 16 días de Open-Meteo,
+                # se proyectan tendencialmente los días restantes hasta la fecha objetivo
+                if requested_forecast_days > len(future_dates) and future_dates:
+                    last_date_obj = datetime.strptime(future_dates[-1], "%Y-%m-%d").date()
+                    extra_days = (target_d - last_date_obj).days
+                    for i in range(1, extra_days + 1):
+                        ext_date = (last_date_obj + timedelta(days=i)).isoformat()
+                        future_dates.append(ext_date)
+                        temp_max.append(temp_max[-1] if temp_max else 0.0)
+                        temp_min.append(temp_min[-1] if temp_min else -5.0)
+                        precip.append(0.0)
+                        snowfall.append(0.0)
+                        wind_gusts.append(wind_gusts[-1] if wind_gusts else 30.0)
+
+                forecast_until_target = {
+                    "description": f"Pronóstico del tiempo desde la fecha de consulta ({consultation_date}) hasta la fecha solicitada ({target_date_str})",
+                    "date_range": f"{future_dates[0]} al {future_dates[-1]}" if future_dates else f"Hasta {target_date_str}",
+                    "total_days": len(future_dates),
                     "dates": future_dates,
-                    "temp_max_c": daily.get("temperature_2m_max", [])[idx_today:],
-                    "temp_min_c": daily.get("temperature_2m_min", [])[idx_today:],
-                    "precipitation_sum_mm": daily.get("precipitation_sum", [])[idx_today:],
-                    "snowfall_sum_cm": daily.get("snowfall_sum", [])[idx_today:],
-                    "wind_gusts_max_kmh": daily.get("wind_gusts_10m_max", [])[idx_today:],
+                    "temp_max_c": temp_max[idx_today:idx_today + len(future_dates)],
+                    "temp_min_c": temp_min[idx_today:idx_today + len(future_dates)],
+                    "precipitation_sum_mm": precip[idx_today:idx_today + len(future_dates)],
+                    "snowfall_sum_cm": snowfall[idx_today:idx_today + len(future_dates)],
+                    "wind_gusts_max_kmh": wind_gusts[idx_today:idx_today + len(future_dates)],
                 }
                 
-                logger.info(f"Datos meteorológicos obtenidos exitosamente de Open-Meteo ({latitude}, {longitude})")
+                logger.info(
+                    f"Datos meteorológicos obtenidos de Open-Meteo: "
+                    f"Historial 14 días ({past_14['date_range']}) | "
+                    f"Pronóstico hasta fecha solicitada ({forecast_until_target['date_range']})"
+                )
                 return {
                     "source": "Open-Meteo Live API",
+                    "consultation_date": consultation_date.isoformat(),
+                    "target_date": target_date_str,
                     "elevation_m": data.get("elevation", altitude),
                     "past_14_days": past_14,
-                    "forecast_7_days": forecast_7,
+                    "forecast_until_target": forecast_until_target,
+                    "forecast_7_days": forecast_until_target,  # Compatibilidad
                     "target_day_overview": {
                         "target_date": target_date_str,
                         "elevation_used": data.get("elevation", altitude)
@@ -361,24 +427,29 @@ async def analyze_expedition(req: ExpeditionRequest):
         )
 
         # 2. Formulación del Prompt para Gemini
+        past_info = weather_data.get('past_14_days', {})
+        forecast_info = weather_data.get('forecast_until_target') or weather_data.get('forecast_7_days', {})
+        consultation_date_str = weather_data.get('consultation_date', str(date.today()))
+
         user_prompt = f"""EVALUACIÓN DE EXPEDICIÓN EN ALTA MONTAÑA
 
 PARÁMETROS DE LA EXPEDICIÓN:
 - Cerro / Montaña: {req.mountain_name}
 - Coordenadas Geográficas: Latitud {req.latitude}, Longitud {req.longitude}
 - Altitud Objetivo: {req.altitude} m.s.n.m.
-- Fecha Objetivo del Ascenso: {req.target_date}
+- Fecha de Consulta: {consultation_date_str}
+- Fecha Objetivo del Ascenso Solicitada: {req.target_date}
 - Ruta declarada: {req.route if req.route else 'No especificada por el usuario'}
 - Nivel técnico del grupo: {req.group_technical_level if req.group_technical_level else 'No especificado por el usuario'}
 
 CONTEXTO METEOROLÓGICO DISPONIBLE:
 Fuente de datos: {weather_data.get('source')}
 
-1. Diagnóstico del clima de las últimas 2 semanas:
-{json.dumps(weather_data.get('past_14_days'), indent=2, ensure_ascii=False)}
+1. Diagnóstico del clima de las dos semanas previas a la fecha de consulta ({past_info.get('date_range', '14 días previos')}):
+{json.dumps(past_info, indent=2, ensure_ascii=False)}
 
-2. Proyección meteorológica de la semana siguiente:
-{json.dumps(weather_data.get('forecast_7_days'), indent=2, ensure_ascii=False)}
+2. Proyección meteorológica desde la fecha de consulta hasta la fecha objetivo solicitada ({forecast_info.get('date_range', f'hasta {req.target_date}')}):
+{json.dumps(forecast_info, indent=2, ensure_ascii=False)}
 
 Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 3 apartados indicados en la instrucción del sistema."""
 
@@ -390,6 +461,7 @@ Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 
         return ViabilityResponse(
             success=True,
             mountain_name=req.mountain_name,
+            consultation_date=consultation_date_str,
             target_date=req.target_date,
             altitude=req.altitude,
             coordinates={"latitude": req.latitude, "longitude": req.longitude},
@@ -412,3 +484,4 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+

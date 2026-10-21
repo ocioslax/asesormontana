@@ -1,10 +1,9 @@
 # Dockerfile para Servicio Web: Asesor de Seguridad en Alta Montaña
-# Grupo 1 - Advance Prompt Engineering for Generative IA
 
 FROM python:3.11-slim
 
 # Metadatos del contenedor
-LABEL maintainer="Grupo 1 - Advance Prompt Engineering"
+LABEL maintainer="Mountain Safety Advisor"
 LABEL description="Asesor de Seguridad en Alta Montaña con FastAPI y Gemini Pro"
 
 # Variables de entorno para optimización de Python
@@ -41,3 +40,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 
 # Comando de ejecución con Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+

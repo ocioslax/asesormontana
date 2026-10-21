@@ -50,7 +50,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
-          tags: grupo1/mountain-advisor:latest
+          tags: mountain-advisor:latest
 
   deploy-to-vercel:
     name: Deploy to Vercel
@@ -78,3 +78,4 @@ jobs:
           vercel pull --yes --environment=production --token=$VERCEL_TOKEN
           vercel build --prod --token=$VERCEL_TOKEN
           vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+

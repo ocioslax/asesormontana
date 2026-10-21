@@ -2,34 +2,22 @@
 
 > **Aplicación Web para Diagnóstico Nivometeorológico y Viabilidad Experta "Go / No Go" con IA**
 
-Proyecto desarrollado para el curso **Advance Prompt Engineering for Generative IA**.
-
----
-
-## 👥 Información del Proyecto y Equipo
-
-| Rol | Nombre |
-| :--- | :--- |
-| **Grupo** | **Grupo 1** |
-| **Integrantes** | Julio Soto Sánchez<br>Miguel Pedreros Olate<br>Francisco Parada<br>Francisco Bahamondes |
-| **Curso** | Advance Prompt Engineering for Generative IA |
-| **Coordinadora** | Berta Soto Jara |
-| **Director Académico** | Ahmad Armoush |
+Plataforma especializada en gestión del riesgo y análisis nivometeorológico para expediciones de montaña.
 
 ---
 
 ## 🎯 Descripción del Sistema
 
-El **Asesor de Seguridad en Alta Montaña** es una plataforma web completa diseñada para montañistas, expedicionarios y guías de montaña. Recibe parámetros geográficos y temporales de una expedición, recopila automáticamente los registros meteorológicos de las **últimas dos semanas** y el pronóstico de la **semana siguiente**, y procesa esta información a través del modelo **Google Gemini Pro** utilizando técnicas avanzadas de Prompt Engineering y la escala de riesgo de avalanchas **EAWS** (*European Avalanche Warning System*).
+El **Asesor de Seguridad en Alta Montaña** es una plataforma web completa diseñada para montañistas, expedicionarios y guías de montaña. Permite seleccionar una ubicación geográfica mediante mapa interactivo OpenStreetMap o cumbres pre-configuradas, recopila automáticamente los registros meteorológicos de las **dos semanas previas a la fecha de consulta** y el pronóstico **hasta la fecha solicitada**, y procesa esta información a través del modelo **Google Gemini Pro** utilizando la escala de riesgo de avalanchas **EAWS** (*European Avalanche Warning System*).
 
 ---
 
 ## 🏗️ Arquitectura y Stack Tecnológico
 
 * **Backend:** Python 3.11+, **FastAPI**, servido asíncronamente con **Uvicorn**.
-* **Frontend:** Panel interactivo SPA basado en el estilo visual **Adminator** (Bootstrap 5, Inter font, FontAwesome 6, JavaScript asíncrono con `fetch`).
+* **Frontend:** Panel interactivo SPA basado en el estilo visual **Adminator** (Bootstrap 5, Inter font, FontAwesome 6, Leaflet con OpenStreetMap).
 * **IA / LLM:** Google Gemini (**Gemini Pro**) mediante el SDK `google-generativeai`. Incluye motor de contingencia y simulación experta en caso de ausencia de API key o intermitencia de red.
-* **Datos Meteorológicos:** Integración automática con **Open-Meteo API** (historial satelital de 14 días + proyección de 7 días sin costo de API key) con fallback dinámico calibrado por altitud.
+* **Datos Meteorológicos:** Integración automática con **Open-Meteo API** (historial satelital de 14 días + proyección hasta fecha solicitada sin costo de API key) con fallback dinámico calibrado por altitud.
 * **Contenedores:** Docker (`Dockerfile` optimizado y seguro con usuario no-root) y `docker-compose.yml`.
 * **CI/CD:** GitHub Actions (`.github/workflows/main.yml` y `deploy.yml`) para validación de PRs en rama `development` y despliegue a **Vercel** (`vercel.json`).
 
@@ -136,3 +124,4 @@ La interfaz web incluye botones de carga rápida ("Presets") para evaluar cumbre
 El repositorio está configurado para:
 1. **Pull Requests hacia `development`:** Ejecuta pruebas de validación de sintaxis, modelos Pydantic y construcción de contenedor Docker.
 2. **Merge hacia `main`:** Dispara el despliegue automático hacia **Vercel** mediante Vercel CLI utilizando el adaptador de serverless functions definido en `vercel.json`.
+

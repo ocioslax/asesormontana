@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Asesor de Seguridad en Alta Montaña | Dashboard Adminator</title>
-  <!-- Google Fonts: Inter / Roboto -->
+  <title>Asesor de Seguridad en Alta Montaña | Dashboard</title>
+  <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -12,6 +12,11 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Leaflet CSS (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Leaflet JS (OpenStreetMap) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
   <style>
     :root {
       --adminator-sidebar-bg: #212529;
@@ -192,6 +197,16 @@
       color: #055160;
     }
 
+    /* Map Styling */
+    #osmMap {
+      height: 270px;
+      width: 100%;
+      border-radius: 0.5rem;
+      border: 1px solid #ced4da;
+      z-index: 10;
+      cursor: crosshair;
+    }
+
     /* Verdict Alert Boxes */
     .verdict-box {
       border-radius: 0.5rem;
@@ -273,13 +288,13 @@
     }
 
     .weather-stat-val {
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 700;
       color: #212529;
     }
 
     .weather-stat-lbl {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: #6c757d;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -332,23 +347,17 @@
         </a>
       </li>
       <li class="sidebar-item">
-        <a href="#weather-tab" class="sidebar-link">
+        <a href="#weatherMetricsRow" class="sidebar-link">
           <i class="fa-solid fa-cloud-sun-rain"></i>
           <span>Diagnóstico Nival</span>
-        </a>
-      </li>
-      <li class="sidebar-item">
-        <a href="#about-group" class="sidebar-link">
-          <i class="fa-solid fa-users"></i>
-          <span>Grupo 1 - Proyecto</span>
         </a>
       </li>
     </ul>
 
     <div class="sidebar-footer">
-      <div><strong>Curso:</strong> Prompt Engineering</div>
-      <div><strong>Modelo:</strong> Google Gemini Pro</div>
-      <div><strong>Backend:</strong> FastAPI + Uvicorn</div>
+      <div><strong>Plataforma:</strong> Seguridad en Montaña</div>
+      <div><strong>Motor IA:</strong> Google Gemini Pro</div>
+      <div><strong>Datos Clima:</strong> Open-Meteo API</div>
     </div>
   </aside>
 
@@ -397,12 +406,12 @@
           <div class="card-adminator">
             <div class="card-adminator-header">
               <span><i class="fa-solid fa-sliders me-2 text-primary"></i>Parámetros de la Expedición</span>
-              <span class="text-muted small">PASO 3</span>
+              <span class="badge bg-light text-dark border">Geolocalización</span>
             </div>
             <div class="card-adminator-body">
               <!-- Preset Mountains -->
               <div class="mb-3">
-                <label class="form-label text-muted small fw-semibold">Rutas Pre-configuradas (Carga Rápida):</label>
+                <label class="form-label text-muted small fw-semibold">Cumbres Pre-configuradas (Carga Rápida):</label>
                 <div>
                   <button type="button" class="preset-pill" onclick="loadPreset('Cerro El Plomo', -33.2319, -70.2172, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar')">
                     🇨🇱 Cerro El Plomo (5.424m)
@@ -419,13 +428,31 @@
                 </div>
               </div>
 
+              <!-- MAPA OPENSTREETMAP -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label fw-semibold small mb-0">
+                    <i class="fa-solid fa-map-location-dot text-primary me-1"></i>Mapa Interactivo (OpenStreetMap)
+                  </label>
+                  <span class="badge bg-light text-muted border small">
+                    <i class="fa-solid fa-crosshairs me-1 text-danger"></i>Clic para fijar punto
+                  </span>
+                </div>
+                <div id="osmMap"></div>
+                <div class="form-text small text-muted mt-1" id="mapStatusHelp">
+                  <i class="fa-solid fa-circle-info me-1"></i>Haz clic en el mapa para fijar latitud y longitud; el nombre del lugar se vaciará para usar las coordenadas seleccionadas.
+                </div>
+              </div>
+
               <form id="expeditionForm">
                 <!-- Nombre Cerro -->
                 <div class="mb-3">
-                  <label for="mountainName" class="form-label fw-semibold">Nombre Cerro / Montaña <span class="text-danger">*</span></label>
+                  <label for="mountainName" class="form-label fw-semibold">
+                    Nombre Cerro / Montaña <span class="text-muted fw-normal small">(Opcional al usar el mapa)</span>
+                  </label>
                   <div class="input-group">
                     <span class="input-group-text"><i class="fa-solid fa-mountain"></i></span>
-                    <input type="text" class="form-control" id="mountainName" required placeholder="Ej: Cerro El Plomo">
+                    <input type="text" class="form-control" id="mountainName" placeholder="Ej: Cerro El Plomo (o vacía al marcar en mapa)">
                   </div>
                 </div>
 
@@ -433,11 +460,11 @@
                 <div class="row">
                   <div class="col-md-6 mb-3">
                     <label for="latitude" class="form-label fw-semibold">Latitud <span class="text-danger">*</span></label>
-                    <input type="number" step="0.0001" class="form-control" id="latitude" required placeholder="-33.2319">
+                    <input type="number" step="0.0001" class="form-control" id="latitude" required placeholder="-33.2319" value="-33.2319">
                   </div>
                   <div class="col-md-6 mb-3">
                     <label for="longitude" class="form-label fw-semibold">Longitud <span class="text-danger">*</span></label>
-                    <input type="number" step="0.0001" class="form-control" id="longitude" required placeholder="-70.2172">
+                    <input type="number" step="0.0001" class="form-control" id="longitude" required placeholder="-70.2172" value="-70.2172">
                   </div>
                 </div>
 
@@ -446,7 +473,7 @@
                   <div class="col-md-6 mb-3">
                     <label for="altitude" class="form-label fw-semibold">Altitud (m.s.n.m.) <span class="text-danger">*</span></label>
                     <div class="input-group">
-                      <input type="number" class="form-control" id="altitude" required placeholder="5424">
+                      <input type="number" class="form-control" id="altitude" required placeholder="5424" value="5424">
                       <span class="input-group-text">m</span>
                     </div>
                   </div>
@@ -463,8 +490,8 @@
                 </div>
 
                 <div class="mb-3">
-                  <label for="groupLevel" class="form-label fw-semibold">Nivel Técnico del Grupo (Opcional)</label>
-                  <input type="text" class="form-control" id="groupLevel" placeholder="Ej: Intermedio, autonomía en rescate">
+                  <label for="groupLevel" class="form-label fw-semibold">Nivel Técnico de la Cordada / Expedición (Opcional)</label>
+                  <input type="text" class="form-control" id="groupLevel" placeholder="Ej: Intermedio, autonomía en autorrescate">
                 </div>
 
                 <button type="submit" id="btnSubmit" class="btn btn-primary w-100 py-2 fw-semibold">
@@ -481,7 +508,7 @@
           <div id="loadingBox" class="card-adminator loading-overlay">
             <i class="fa-solid fa-compass spinner-compass mb-3"></i>
             <h5 class="fw-bold text-dark">Generando Análisis Nivológico con IA...</h5>
-            <p class="text-muted small" id="loadingStep">Consultando datos meteorológicos (Open-Meteo)...</p>
+            <p class="text-muted small" id="loadingStep">Consultando datos meteorológicos de Open-Meteo...</p>
             <div class="progress w-50 mx-auto" style="height: 6px;">
               <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
             </div>
@@ -492,7 +519,7 @@
             <i class="fa-solid fa-mountain text-muted fa-3x mb-3"></i>
             <h5 class="fw-bold">Esperando Parámetros de la Expedición</h5>
             <p class="text-muted small mb-3">
-              Completa el formulario a la izquierda o selecciona una de las cumbres pre-configuradas para iniciar la recopilación de datos meteorológicos y la evaluación experta con Gemini Pro.
+              Completa el formulario, haz clic en el mapa interactivo OpenStreetMap o selecciona una de las cumbres pre-configuradas para iniciar el análisis con Gemini Pro.
             </p>
             <button class="btn btn-outline-primary btn-sm mx-auto" onclick="loadPreset('Cerro El Plomo', -33.2319, -70.2172, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar')">
               <i class="fa-solid fa-bolt me-1"></i>Probar con Cerro El Plomo (Demo)
@@ -606,7 +633,10 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-  // Inicialización de fecha por defecto (mañana)
+  let map;
+  let currentMarker = null;
+
+  // Inicialización de la aplicación y el mapa OpenStreetMap
   document.addEventListener("DOMContentLoaded", () => {
     const today = new Date();
     document.getElementById("currentDateDisplay").innerText = today.toLocaleDateString("es-ES", {
@@ -618,8 +648,80 @@
     tomorrow.setDate(tomorrow.getDate() + 2);
     targetDateInput.value = tomorrow.toISOString().split("T")[0];
 
+    initOpenStreetMap();
     checkSystemHealth();
+
+    // Listeners para sincronizar cambios manuales de coordenadas con el mapa
+    document.getElementById("latitude").addEventListener("change", syncInputsToMap);
+    document.getElementById("longitude").addEventListener("change", syncInputsToMap);
   });
+
+  // Inicialización de Leaflet con capas de OpenStreetMap
+  function initOpenStreetMap() {
+    const defaultLat = -33.2319;
+    const defaultLng = -70.2172;
+
+    map = L.map('osmMap').setView([defaultLat, defaultLng], 10);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // Marcador inicial
+    currentMarker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+    currentMarker.bindPopup("<strong>Punto Inicial (Cerro El Plomo)</strong><br>Lat: -33.2319<br>Lon: -70.2172");
+
+    // Evento de clic en el mapa
+    map.on('click', (e) => {
+      onMapLocationPicked(e.latlng.lat, e.latlng.lng);
+    });
+
+    // Evento al arrastrar el marcador
+    currentMarker.on('dragend', (e) => {
+      const pos = e.target.getLatLng();
+      onMapLocationPicked(pos.lat, pos.lng);
+    });
+  }
+
+  // Lógica requerida: al seleccionar en el mapa, vacía el nombre y rellena lat/lon
+  function onMapLocationPicked(lat, lng) {
+    document.getElementById("latitude").value = lat.toFixed(4);
+    document.getElementById("longitude").value = lng.toFixed(4);
+
+    // Vacía el campo del nombre del lugar para priorizar la coordenada seleccionada
+    document.getElementById("mountainName").value = "";
+
+    // Actualiza o mueve el marcador
+    if (currentMarker) {
+      currentMarker.setLatLng([lat, lng]);
+    } else {
+      currentMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    }
+    
+    currentMarker.bindPopup(`<strong>Zona Seleccionada en Mapa</strong><br>Lat: ${lat.toFixed(4)}<br>Lon: ${lng.toFixed(4)}`).openPopup();
+
+    document.getElementById("mapStatusHelp").innerHTML =
+      `<span class="text-success fw-semibold"><i class="fa-solid fa-location-dot me-1"></i>Punto fijado: Lat ${lat.toFixed(4)}, Lon ${lng.toFixed(4)} (Nombre vaciado para usar coordenadas).</span>`;
+  }
+
+  // Actualiza el mapa cuando el usuario tipea coordenadas manualmente
+  function syncInputsToMap() {
+    const lat = parseFloat(document.getElementById("latitude").value);
+    const lng = parseFloat(document.getElementById("longitude").value);
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      if (map) {
+        map.setView([lat, lng], Math.max(map.getZoom(), 10));
+        if (currentMarker) {
+          currentMarker.setLatLng([lat, lng]);
+        } else {
+          currentMarker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        }
+        const name = document.getElementById("mountainName").value || `Zona (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        currentMarker.bindPopup(`<strong>${name}</strong><br>Lat: ${lat.toFixed(4)}<br>Lon: ${lng.toFixed(4)}`);
+      }
+    }
+  }
 
   // Chequeo de salud del backend
   async function checkSystemHealth() {
@@ -648,13 +750,27 @@
     document.getElementById("altitude").value = alt;
     document.getElementById("route").value = route;
     document.getElementById("groupLevel").value = level;
+
+    // Actualizar mapa y marcador
+    if (map) {
+      map.setView([lat, lon], 12);
+      if (currentMarker) {
+        currentMarker.setLatLng([lat, lon]);
+      } else {
+        currentMarker = L.marker([lat, lon], { draggable: true }).addTo(map);
+      }
+      currentMarker.bindPopup(`<strong>${name}</strong><br>Altitud: ${alt} m<br>Lat: ${lat}, Lon: ${lon}`).openPopup();
+    }
+
+    document.getElementById("mapStatusHelp").innerHTML =
+      `<span class="text-primary fw-semibold"><i class="fa-solid fa-mountain me-1"></i>Cumbre cargada: <strong>${name}</strong> (${alt} m).</span>`;
   }
 
   // Manejador del Formulario
   document.getElementById("expeditionForm").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const mountainName = document.getElementById("mountainName").value.trim();
+    const rawName = document.getElementById("mountainName").value.trim();
     const latitude = parseFloat(document.getElementById("latitude").value);
     const longitude = parseFloat(document.getElementById("longitude").value);
     const altitude = parseFloat(document.getElementById("altitude").value);
@@ -662,17 +778,20 @@
     const route = document.getElementById("route").value.trim();
     const groupLevel = document.getElementById("groupLevel").value.trim();
 
+    // Si el nombre se vació al elegir en el mapa, usar coordenadas como identificador
+    const mountainName = rawName || `Punto en Mapa (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
+
     // Mostrar spinner
     document.getElementById("initialPlaceholder").style.display = "none";
     document.getElementById("resultsContainer").style.display = "none";
     document.getElementById("loadingBox").style.display = "block";
 
     const loadingStep = document.getElementById("loadingStep");
-    loadingStep.innerText = `Consultando datos meteorológicos (2 semanas previas a la consulta y pronóstico hasta ${targetDate})...`;
+    loadingStep.innerText = `Consultando datos meteorológicos (2 semanas previas y pronóstico hasta ${targetDate})...`;
 
     try {
       setTimeout(() => {
-        if (loadingStep) loadingStep.innerText = "Compilando diagnóstico de 2 semanas previas y evolución nivometeorológica hasta fecha objetivo...";
+        if (loadingStep) loadingStep.innerText = "Compilando diagnóstico nival previo y evolución hasta fecha objetivo...";
       }, 900);
 
       setTimeout(() => {
@@ -765,7 +884,6 @@
   }
 
   function parseReportSections(fullText) {
-    // Expresiones regulares para segmentar los 3 apartados del Prompt Maestro
     let sec1 = "";
     let sec2 = "";
     let sec3 = "";
@@ -779,7 +897,6 @@
       sec2 = fullText.substring(p2, p3).replace(/\*\*2\.\s*Nivel de Riesgo General:\*\*/i, "").trim();
       sec3 = fullText.substring(p3).replace(/\*\*3\.\s*Recomendación Final y Criterio 'Go \/ No Go':\*\*/i, "").trim();
     } else {
-      // Fallback si la IA estructuró con ligeras variantes
       sec1 = fullText;
       sec2 = "Consulte el detalle completo en el apartado principal.";
       sec3 = "Consulte las recomendaciones finales en el texto consolidado.";
@@ -813,4 +930,3 @@
 
 </body>
 </html>
-

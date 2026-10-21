@@ -1,12 +1,6 @@
 """
 Servicio Web: Asesor de Seguridad en Alta Montaña
-Grupo 1 - Advance Prompt Engineering for Generative IA
-Integrantes:
-  - Julio Soto Sánchez
-  - Miguel Pedreros Olate
-  - Francisco Parada
-  - Francisco Bahamondes
-Coordinadora: Berta Soto Jara | Director Académico: Ahmad Armoush
+Sistema de análisis nivometeorológico y viabilidad Go/No Go con Google Gemini Pro
 """
 
 import os
@@ -34,7 +28,7 @@ logger = logging.getLogger("mountain-safety-advisor")
 
 # Inicialización de la aplicación FastAPI
 app = FastAPI(
-    title="Asesor de Seguridad en Alta Montaña - Grupo 1",
+    title="Asesor de Seguridad en Alta Montaña",
     description="Sistema de análisis nivometeorológico y viabilidad Go/No Go con Google Gemini Pro",
     version="1.0.0"
 )
@@ -60,13 +54,13 @@ Estructura tu respuesta EXACTAMENTE en los siguientes 3 apartados:
 
 # Modelos Pydantic para validación de datos
 class ExpeditionRequest(BaseModel):
-    mountain_name: str = Field(..., description="Nombre del cerro, montaña o referencia geográfica", example="Cerro El Plomo")
+    mountain_name: Optional[str] = Field(default="", description="Nombre del cerro, montaña o referencia geográfica (opcional si se selecciona en mapa)", example="Cerro El Plomo")
     latitude: float = Field(..., ge=-90.0, le=90.0, description="Latitud en grados decimales", example=-33.2319)
     longitude: float = Field(..., ge=-180.0, le=180.0, description="Longitud en grados decimales", example=-70.2172)
     altitude: float = Field(..., ge=0.0, le=9000.0, description="Altitud en m.s.n.m.", example=5424.0)
     target_date: str = Field(..., description="Fecha objetivo del ascenso (YYYY-MM-DD)", example="2026-11-15")
     route: Optional[str] = Field(default="", description="Ruta prevista (opcional)", example="Ruta Normal por La Hoya")
-    group_technical_level: Optional[str] = Field(default="", description="Nivel técnico del grupo (opcional)", example="Intermedio con experiencia en cramponaje")
+    group_technical_level: Optional[str] = Field(default="", description="Nivel técnico de la cordada (opcional)", example="Intermedio con experiencia en cramponaje")
 
 class WeatherSummary(BaseModel):
     source: str
@@ -403,7 +397,6 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "Asesor de Seguridad en Alta Montaña",
-        "group": "Grupo 1",
         "gemini_api_configured": gemini_key_set,
         "timestamp": datetime.utcnow().isoformat()
     }
@@ -416,7 +409,10 @@ async def analyze_expedition(req: ExpeditionRequest):
     y genera el informe de viabilidad técnica mediante Gemini Pro.
     """
     try:
-        logger.info(f"Iniciando evaluación para: {req.mountain_name} (Alt: {req.altitude}m, Fecha: {req.target_date})")
+        # Si el usuario no especificó nombre o usó el mapa, usar coordenadas como referencia
+        display_name = req.mountain_name.strip() if (req.mountain_name and req.mountain_name.strip()) else f"Zona Coordenadas ({req.latitude:.4f}, {req.longitude:.4f})"
+        
+        logger.info(f"Iniciando evaluación para: {display_name} (Alt: {req.altitude}m, Fecha: {req.target_date})")
 
         # 1. Recopilación de datos meteorológicos (Open-Meteo con fallback automático)
         weather_data = await fetch_openmeteo_weather(
@@ -434,13 +430,13 @@ async def analyze_expedition(req: ExpeditionRequest):
         user_prompt = f"""EVALUACIÓN DE EXPEDICIÓN EN ALTA MONTAÑA
 
 PARÁMETROS DE LA EXPEDICIÓN:
-- Cerro / Montaña: {req.mountain_name}
+- Cerro / Montaña: {display_name}
 - Coordenadas Geográficas: Latitud {req.latitude}, Longitud {req.longitude}
 - Altitud Objetivo: {req.altitude} m.s.n.m.
 - Fecha de Consulta: {consultation_date_str}
 - Fecha Objetivo del Ascenso Solicitada: {req.target_date}
 - Ruta declarada: {req.route if req.route else 'No especificada por el usuario'}
-- Nivel técnico del grupo: {req.group_technical_level if req.group_technical_level else 'No especificado por el usuario'}
+- Nivel técnico de la expedición: {req.group_technical_level if req.group_technical_level else 'No especificado por el usuario'}
 
 CONTEXTO METEOROLÓGICO DISPONIBLE:
 Fuente de datos: {weather_data.get('source')}
@@ -460,7 +456,7 @@ Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 
 
         return ViabilityResponse(
             success=True,
-            mountain_name=req.mountain_name,
+            mountain_name=display_name,
             consultation_date=consultation_date_str,
             target_date=req.target_date,
             altitude=req.altitude,

@@ -9,7 +9,7 @@ LABEL description="Asesor de Seguridad en Alta Montaña con FastAPI y Gemini Pro
 # Variables de entorno para optimización de Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8000
+    PORT=8080
 
 # Directorio de trabajo
 WORKDIR /app
@@ -31,13 +31,8 @@ COPY index.html .
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Exponer el puerto del servicio
-EXPOSE 8000
+# Exponer el puerto del servicio (Cloud Run utiliza 8080 por defecto)
+EXPOSE 8080
 
-# Healthcheck nativo
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/api/health || exit 1
-
-# Comando de ejecución con Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+# Comando de ejecución con Uvicorn leyendo la variable PORT de Cloud Run
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

@@ -1052,37 +1052,133 @@
   }
 
   function parseReportSections(fullText) {
+    if (!fullText) return;
+
+    // Búsqueda flexible de los 3 apartados del reporte
+    const m1 = fullText.search(/(?:#+\s*)?(?:\*\*)?1[\.\s\:\-\)]*Estado de la Nieve/i);
+    const m2 = fullText.search(/(?:#+\s*)?(?:\*\*)?2[\.\s\:\-\)]*Nivel de Riesgo/i);
+    const m3 = fullText.search(/(?:#+\s*)?(?:\*\*)?3[\.\s\:\-\)]*Recomendaci[oó]n Final/i);
+
     let sec1 = "";
     let sec2 = "";
     let sec3 = "";
 
-    const p1 = fullText.indexOf("1. Estado de la Nieve");
-    const p2 = fullText.indexOf("2. Nivel de Riesgo General");
-    const p3 = fullText.indexOf("3. Recomendación Final");
-
-    if (p1 !== -1 && p2 !== -1 && p3 !== -1) {
-      sec1 = fullText.substring(p1, p2).replace(/\*\*1\.\s*Estado de la Nieve y Viabilidad del Ascenso:\*\*/i, "").trim();
-      sec2 = fullText.substring(p2, p3).replace(/\*\*2\.\s*Nivel de Riesgo General:\*\*/i, "").trim();
-      sec3 = fullText.substring(p3).replace(/\*\*3\.\s*Recomendación Final y Criterio 'Go \/ No Go':\*\*/i, "").trim();
+    if (m1 !== -1 && m2 !== -1 && m3 !== -1 && m1 < m2 && m2 < m3) {
+      sec1 = fullText.substring(m1, m2);
+      sec2 = fullText.substring(m2, m3);
+      sec3 = fullText.substring(m3);
     } else {
-      sec1 = fullText;
-      sec2 = "Consulte el detalle completo en el apartado principal.";
-      sec3 = "Consulte las recomendaciones finales en el texto consolidado.";
+      // Fallback por búsqueda simple si la regex no coincidió en orden
+      const p1 = fullText.indexOf("1. Estado");
+      const p2 = fullText.indexOf("2. Nivel");
+      const p3 = fullText.indexOf("3. Recomendación");
+
+      if (p1 !== -1 && p2 !== -1 && p3 !== -1 && p1 < p2 && p2 < p3) {
+        sec1 = fullText.substring(p1, p2);
+        sec2 = fullText.substring(p2, p3);
+        sec3 = fullText.substring(p3);
+      } else {
+        sec1 = fullText;
+        sec2 = "Consulte el detalle completo en el apartado anterior.";
+        sec3 = "Consulte las recomendaciones en el texto consolidado.";
+      }
     }
+
+    // Limpiar títulos duplicados (primer línea), separadores --- y ###, y aplicar trim exhaustivo
+    sec1 = cleanSectionContent(sec1, /^\s*(?:#+\s*)?(?:\*\*)?1[\.\s\:\-\)]*Estado de la Nieve[^\n]*\n*/i);
+    sec2 = cleanSectionContent(sec2, /^\s*(?:#+\s*)?(?:\*\*)?2[\.\s\:\-\)]*Nivel de Riesgo[^\n]*\n*/i);
+    sec3 = cleanSectionContent(sec3, /^\s*(?:#+\s*)?(?:\*\*)?3[\.\s\:\-\)]*Recomendaci[oó]n Final[^\n]*\n*/i);
 
     document.getElementById("contentSection1").innerHTML = formatMarkdownToHtml(sec1);
     document.getElementById("contentSection2").innerHTML = formatMarkdownToHtml(sec2);
     document.getElementById("contentSection3").innerHTML = formatMarkdownToHtml(sec3);
   }
 
+  function cleanSectionContent(rawText, titleRegex) {
+    if (!rawText) return "";
+    let clean = rawText.trim();
+
+    // 1. Eliminar título duplicado inicial
+    if (titleRegex) {
+      clean = clean.replace(titleRegex, "").trim();
+    }
+
+    // 2. Eliminar líneas separadoras como ---, ***, ___
+    clean = clean.replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, "");
+
+    // 3. Eliminar líneas que sean solo almohadillas residuales (###, ##, #)
+    clean = clean.replace(/^[ \t]*#{1,6}[ \t]*$/gm, "");
+
+    // 4. Eliminar encabezados h3/h2 sobrantes al inicio o al final
+    clean = clean.replace(/^\s*#{1,6}\s*/, "");
+
+    return clean.trim();
+  }
+
   function formatMarkdownToHtml(text) {
     if (!text) return "";
-    let html = text
+
+    // 1. Limpieza de separadores y hashes residuales
+    let cleaned = text
+      .replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, "")
+      .replace(/^[ \t]*#{1,6}[ \t]*$/gm, "")
+      .trim();
+
+    // 2. Formatear negritas y cursivas
+    cleaned = cleaned
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/\n/g, '<br>');
-    return html;
+      .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+
+    // 3. Formatear listas de viñetas y párrafos con espaciado limpio
+    const lines = cleaned.split("\n");
+    let html = "";
+    let inList = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i].trim();
+
+      // Descartar líneas vacías o residuos de markdown
+      if (!line || line === "---" || line === "***" || line === "###" || line === "##") {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        continue;
+      }
+
+      // Si es un subtítulo tipo "### Subtítulo"
+      if (line.startsWith("#")) {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        const sub = line.replace(/^#+\s*/, "").trim();
+        html += `<h6 class="fw-bold mt-3 mb-2 text-dark">${sub}</h6>`;
+        continue;
+      }
+
+      // Si es una viñeta (* o -)
+      const bulletMatch = line.match(/^[\*\-]\s+(.*)$/);
+      if (bulletMatch) {
+        if (!inList) {
+          html += '<ul class="ps-3 mb-2" style="list-style-type: disc;">';
+          inList = true;
+        }
+        html += `<li class="mb-1">${bulletMatch[1].trim()}</li>`;
+      } else {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        html += `<p class="mb-2">${line}</p>`;
+      }
+    }
+
+    if (inList) {
+      html += "</ul>";
+    }
+
+    return html.trim();
   }
 
   function copyReportToClipboard() {

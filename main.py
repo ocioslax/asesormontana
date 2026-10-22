@@ -8,6 +8,7 @@ import json
 import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime, date, timedelta
+import asyncio
 
 import httpx
 from dotenv import load_dotenv
@@ -382,18 +383,24 @@ async def fetch_openmeteo_weather(
         logger.warning(f"No fue posible conectar con Open-Meteo ({exc}). Usando fallback sintético.")
         return generate_fallback_weather(latitude, longitude, altitude, target_date_str, mountain_name, route)
 
-def call_gemini_pro(prompt: str, system_instruction: str) -> Dict[str, Any]:
+def call_gemini_pro(
+    prompt: str,
+    system_instruction: str,
+    mountain_name: str = "",
+    altitude: float = 3000.0,
+    weather_data: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
     Envía el prompt al modelo Gemini Pro utilizando el SDK oficial google-generativeai.
-    Gestiona ausencia de clave o errores de conexión.
+    Gestiona compatibilidad de versiones de modelos y contingencia experta dinámica.
     """
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     
     if not api_key:
-        logger.warning("GEMINI_API_KEY no encontrada en el entorno. Generando informe experto en modo simulación.")
+        logger.warning("GEMINI_API_KEY no encontrada en el entorno. Generando informe en modo contingencia.")
         return {
-            "text": simulate_expert_response(prompt),
-            "model": "simulated-gemini-pro (GEMINI_API_KEY no configurada)",
+            "text": simulate_expert_response(mountain_name, altitude, weather_data),
+            "model": "simulated-engine (GEMINI_API_KEY no configurada)",
             "is_simulation": True
         }
 
@@ -401,13 +408,20 @@ def call_gemini_pro(prompt: str, system_instruction: str) -> Dict[str, Any]:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
 
-        # Probar modelos disponibles: gemini-pro o gemini-1.5-flash / gemini-1.5-pro según soporte del SDK
-        model_candidates = ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        # Candidatos prioritarios compatibles con la versión actual de la API de Gemini
+        model_candidates = [
+            "gemini-3.8-flash",
+            "gemini-pro-latest",
+            "gemini-flash-latest",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-pro"
+        ]
+
         last_error = None
         
         for candidate in model_candidates:
             try:
-                # Si el SDK soporta system_instruction en GenerativeModel
                 try:
                     model = genai.GenerativeModel(
                         model_name=candidate,
@@ -415,13 +429,12 @@ def call_gemini_pro(prompt: str, system_instruction: str) -> Dict[str, Any]:
                     )
                     full_prompt = prompt
                 except TypeError:
-                    # En versiones previas del SDK, prepender la instrucción del sistema
                     model = genai.GenerativeModel(model_name=candidate)
                     full_prompt = f"INSTRUCCIÓN DEL SISTEMA:\n{system_instruction}\n\n---\nSOLICITUD:\n{prompt}"
 
                 response = model.generate_content(full_prompt)
                 if response and response.text:
-                    logger.info(f"Respuesta generada exitosamente con el modelo {candidate}")
+                    logger.info(f"¡Éxito! Respuesta generada directamente por Google Gemini ({candidate}) para '{mountain_name}'")
                     return {
                         "text": response.text,
                         "model": candidate,
@@ -429,18 +442,38 @@ def call_gemini_pro(prompt: str, system_instruction: str) -> Dict[str, Any]:
                     }
             except Exception as e:
                 last_error = e
-                logger.warning(f"Fallo al invocar modelo '{candidate}': {e}. Probando siguiente candidato si existe...")
+                logger.debug(f"Candidato '{candidate}' no disponible: {e}")
 
-        # Si fallaron todos los candidatos de modelo (por ejemplo, cuota excedida o clave inválida)
-        raise RuntimeError(f"Fallo en llamadas a Gemini: {last_error}")
+        # Si ninguno de la lista directa respondió, intentar auto-descubrimiento en list_models()
+        try:
+            for m in genai.list_models():
+                if "generateContent" in m.supported_generation_methods:
+                    cand_name = m.name.replace("models/", "")
+                    try:
+                        model = genai.GenerativeModel(model_name=cand_name)
+                        full_prompt = f"INSTRUCCIÓN DEL SISTEMA:\n{system_instruction}\n\n---\nSOLICITUD:\n{prompt}"
+                        response = model.generate_content(full_prompt)
+                        if response and response.text:
+                            logger.info(f"Respuesta generada mediante modelo auto-descubierto: {cand_name}")
+                            return {
+                                "text": response.text,
+                                "model": cand_name,
+                                "is_simulation": False
+                            }
+                    except Exception:
+                        continue
+        except Exception as e_discover:
+            logger.warning(f"Fallo en auto-descubrimiento de modelos: {e_discover}")
+
+        raise RuntimeError(f"No fue posible invocar ningún modelo de Gemini: {last_error}")
 
     except Exception as err:
         logger.error(f"Error al conectar con la API de Google Gemini: {err}")
-        simulated_text = simulate_expert_response(prompt)
+        simulated_text = simulate_expert_response(mountain_name, altitude, weather_data)
         error_note = (
             f"> [!WARNING]\n"
-            f"> **Aviso de Integración Gemini:** Ocurrió una incidencia al contactar a Google Gemini ({str(err)}). "
-            f"Se muestra a continuación el análisis generado por el motor de contingencia de seguridad en montaña.\n\n"
+            f"> **Aviso de Conexión Gemini:** Hubo una incidencia con la API ({str(err)}). "
+            f"Se muestra a continuación el análisis generado por el motor de contingencia para **{mountain_name}**.\n\n"
         )
         return {
             "text": error_note + simulated_text,
@@ -448,39 +481,73 @@ def call_gemini_pro(prompt: str, system_instruction: str) -> Dict[str, Any]:
             "is_simulation": True
         }
 
-def simulate_expert_response(prompt_context: str) -> str:
+def simulate_expert_response(
+    mountain_name: str,
+    altitude: float,
+    weather_data: Optional[Dict[str, Any]] = None
+) -> str:
     """
-    Genera un informe nivometeorológico estructurado exactamente en los 3 apartados
-    exigidos por el Prompt Maestro cuando la API externa no está disponible.
+    Genera un informe nivometeorológico dinámico y personalizado para la zona y altitud
+    específica en caso de indisponibilidad de la API externa.
     """
+    target_name = mountain_name or "Zona de montaña seleccionada"
+    metrics = (weather_data or {}).get("sumas_y_metricas_zona", {})
+    snow_sum = metrics.get("nieve_total_periodo_analizado_cm", 25.0)
+    wind_max = metrics.get("rafaga_viento_maxima_esperada_kmh", 55.0)
+    t_min = metrics.get("temperatura_minima_extrema_c", -15.0)
+
+    # Determinar veredicto y nivel EAWS basado en métricas reales de la zona
+    if wind_max > 70.0 or snow_sum > 60.0 or altitude > 6000:
+        verdict = "[NO RECOMENDADA / ABORTAR (No Go)]"
+        risk_level = "Nivel 4 (Fuerte)"
+        op_risk = "Extremo"
+        snow_state = (
+            f"En {target_name} ({altitude} m.s.n.m.), el manto nivoso presenta alta inestabilidad debido a acumulaciones "
+            f"recientes de {snow_sum} cm de nieve con severo transporte eólico. Se observan placas de viento reactivas en pendientes "
+            f"superiores a 28° y riesgo inminente de desencadenamiento espontáneo en laderas de sotavento."
+        )
+    elif wind_max > 45.0 or snow_sum > 20.0 or altitude > 4000:
+        verdict = "[RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA]"
+        risk_level = "Nivel 3 (Marcado)"
+        op_risk = "Alto"
+        snow_state = (
+            f"Para {target_name} ({altitude} m.s.n.m.), el manto presenta cohesión variable con costras de rehielo matinales "
+            f"y presencia de placas de viento en aristas expuestas. Con {snow_sum} cm acumulados y ráfagas estimadas de {wind_max} km/h, "
+            f"la progresión solo es viable evitando canales cerrados y transitando estrictamente por laderas protegidas o aristas de roca firme."
+        )
+    else:
+        verdict = "[EXPEDICIÓN RECOMENDADA (Go)]"
+        risk_level = "Nivel 2 (Limitado)"
+        op_risk = "Moderado"
+        snow_state = (
+            f"Las condiciones en {target_name} ({altitude} m.s.n.m.) muestran un manto nivoso en proceso de consolidación favorable. "
+            f"Con ráfagas contenidas ({wind_max} km/h) y temperaturas mínimas de {t_min}°C, el manto nivoso permite una progresión "
+            f"firme durante la ventana matinal aprovechando el buen rehielo nocturno."
+        )
+
+    equip = (
+        "Piolet de tracción o travesía, crampones de 12 puntas con antibott debidamente ajustados, casco homologado, "
+        "sonda nival de 240 cm, pala metálica de avalanchas, DVA/Arva de triple antena en frecuencia 457 kHz y botiquín térmico."
+    )
+
     return (
-        "**1. Estado de la Nieve y Viabilidad del Ascenso:**\n"
-        "Durante los últimos 14 días se registraron precipitaciones nivales acumuladas con transporte eólico "
-        "significativo en orientaciones Este y Sureste, generando placas de viento reactivas sobre capas de facetas "
-        "débiles en cotas superiores a los 3.800 m.s.n.m. En pendientes intermedias (>30°), el manto presenta cohesión "
-        "inestable debido a variaciones térmicas diurnas y costras de rehielo quebradizas. La progresión solo es viable "
-        "con extremas precauciones y evitando canales cerrados o laderas de sotavento.\n\n"
-        "*Equipamiento técnico mínimo requerido:* Piolet de travesía/técnico, crampones de 12 puntas con antibott "
-        "ajustados a botas rígidas, casco de montaña, sonda de avalancha de 240 cm, pala de nieve de aluminio, DVA/Arva "
-        "(3 antenas) por participante y botiquín de primeros auxilios en hipotermia.\n\n"
-        "**2. Nivel de Riesgo General:**\n"
-        "Se asigna un **Nivel 3 (Marcado)** en la escala europea EAWS (European Avalanche Warning System). El problema "
-        "nivológico principal radica en 'Placas de Viento Recientes' superpuestas sobre estratos facetados sin consolidar. "
-        "Factores meteorológicos críticos: ráfagas pronosticadas entre 45 y 75 km/h que pueden provocar viento blanco "
-        "(visibilidad inferior a 50 metros), sensación térmica proyectada de hasta -22°C y radiación UV extrema (Índice > 11).\n"
-        "Riesgo residual operativo: **Alto**.\n\n"
-        "**3. Recomendación Final y Criterio 'Go / No Go':**\n"
-        "**[RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA]**\n\n"
-        "Se autoriza intento de cumbre únicamente si se selecciona una ruta por arista limpia de acumulaciones de placa, "
-        "descartando canales y palas con pendiente superior a 32°. \n"
-        "- **Ventana horaria óptima:** Salida de campamento alto entre 03:30 AM y 04:30 AM, aprovechando el rehielo nocturno "
-        "para estabilidad de huella.\n"
-        "- **Hora límite de retorno categórica (turn-around time):** 12:30 PM (independientemente del punto alcanzado).\n"
-        "- **Desencadenantes de aborto inmediato en terreno:** Sonidos de colapso nival ('whoomf'), agrietamiento de la nieve "
-        "bajo los pies, ráfagas de viento sostenidas sobre 60 km/h con pérdida de visibilidad, o incremento de temperatura "
-        "que ablande el manto a profundidad antes de las 10:00 AM.\n\n"
-        "*Nota: Si el usuario no especifica la ruta precisa o el nivel técnico del grupo, se requiere validar de antemano "
-        "la autonomía en rescate en avalanchas y progresión en pendientes pronunciadas para una evaluación definitiva.*"
+        f"**1. Estado de la Nieve y Viabilidad del Ascenso:**\n"
+        f"{snow_state}\n\n"
+        f"*Equipamiento técnico mínimo requerido:* {equip}\n\n"
+        f"**2. Nivel de Riesgo General:**\n"
+        f"Se asigna un **{risk_level}** según la escala europea EAWS. Problema nivológico predominante: "
+        f"Placas de viento y capas débiles persistentes por gradiente térmico. Factores críticos: ráfagas de hasta {wind_max} km/h, "
+        f"sensación térmica extrema de {t_min - 8.0:.1f}°C y visibilidad reducida en cotas altas.\n"
+        f"Riesgo residual operativo: **{op_risk}**.\n\n"
+        f"**3. Recomendación Final y Criterio 'Go / No Go':**\n"
+        f"**{verdict}**\n\n"
+        f"- **Zona evaluada:** {target_name} ({altitude} m.s.n.m.)\n"
+        f"- **Ventana horaria óptima:** Salida recomendada a las 04:00 AM para aprovechar la máxima estabilidad de rehielo del manto.\n"
+        f"- **Hora límite de retorno (turn-around time):** 12:30 PM sin excepción.\n"
+        f"- **Desencadenantes de aborto inmediato en terreno:** Ráfagas sostenidas sobre 60 km/h, desprendimientos o colapsos tipo 'whoomf', "
+        f"pérdida de visibilidad por niebla/viento blanco o reblandecimiento acelerado de la nieve antes de mediodía.\n\n"
+        f"*Nota: Si el usuario no especifica la ruta precisa o el nivel técnico de la cordada, se requiere validar de antemano "
+        f"la experiencia técnica del grupo para una evaluación definitiva.*"
     )
 
 def extract_verdict(analysis_text: str) -> str:
@@ -650,8 +717,15 @@ Fuente de datos: {weather_data.get('source')}
 
 Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 3 apartados indicados en la instrucción del sistema."""
 
-        # 3. Invocación a Gemini Pro
-        gemini_result = call_gemini_pro(prompt=user_prompt, system_instruction=SYSTEM_PROMPT)
+        # 3. Invocación asíncrona a Gemini Pro sin bloquear el loop de Uvicorn
+        gemini_result = await asyncio.to_thread(
+            call_gemini_pro,
+            prompt=user_prompt,
+            system_instruction=SYSTEM_PROMPT,
+            mountain_name=display_name,
+            altitude=req.altitude,
+            weather_data=weather_data
+        )
         analysis_text = gemini_result.get("text", "")
         verdict = extract_verdict(analysis_text)
 

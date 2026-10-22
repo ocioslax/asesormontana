@@ -608,12 +608,15 @@
                   <div class="accordion-item border-0">
                     <h2 class="accordion-header">
                       <button class="accordion-button collapsed bg-light text-dark fw-semibold small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWeather">
-                        <i class="fa-solid fa-database me-2 text-primary"></i>Ver Datos Crudos Meteorológicos (2 semanas previas a consulta + pronóstico hasta fecha solicitada)
+                        <i class="fa-solid fa-database me-2 text-primary"></i>Ver Datos Crudos Open-Meteo (Zona Consultada, Sumas Acumuladas y Registros)
                       </button>
                     </h2>
                     <div id="collapseWeather" class="accordion-collapse collapse" data-bs-parent="#accordionWeather">
                       <div class="accordion-body bg-light">
-                        <pre class="bg-white p-3 rounded border small text-dark" style="max-height: 250px; overflow-y: auto;" id="rawWeatherDump"></pre>
+                        <div class="small text-muted mb-2">
+                          <i class="fa-solid fa-circle-check text-success me-1"></i>Incluye parámetros geográficos de la zona consultada, sumas de precipitación/nieve acumulada y registros de la cuadrícula Open-Meteo:
+                        </div>
+                        <pre class="bg-white p-3 rounded border small text-dark" style="max-height: 350px; overflow-y: auto;" id="rawWeatherDump"></pre>
                       </div>
                     </div>
                   </div>

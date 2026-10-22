@@ -445,14 +445,40 @@
               </div>
 
               <form id="expeditionForm">
-                <!-- Nombre Cerro -->
-                <div class="mb-3">
-                  <label for="mountainName" class="form-label fw-semibold">
-                    Nombre Cerro / Montaña <span class="text-muted fw-normal small">(Opcional al usar el mapa)</span>
-                  </label>
+                <!-- Nombre Cerro con Búsqueda en OpenStreetMap -->
+                <div class="mb-3 position-relative">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label for="mountainName" class="form-label fw-semibold mb-0">
+                      Nombre Cerro / Montaña / Zona
+                    </label>
+                    <span class="text-primary small"><i class="fa-solid fa-magnifying-glass me-1"></i>Buscador OpenStreetMap</span>
+                  </div>
                   <div class="input-group">
-                    <span class="input-group-text"><i class="fa-solid fa-mountain"></i></span>
-                    <input type="text" class="form-control" id="mountainName" placeholder="Ej: Cerro El Plomo (o vacía al marcar en mapa)">
+                    <span class="input-group-text"><i class="fa-solid fa-mountain text-primary"></i></span>
+                    <input type="text" class="form-control" id="mountainName" placeholder="Ej: Cerro El Plomo, Aconcagua, Villarrica...">
+                    <button class="btn btn-primary" type="button" id="btnSearchLocation" title="Buscar en OpenStreetMap">
+                      <i class="fa-solid fa-magnifying-glass me-1"></i>Buscar
+                    </button>
+                  </div>
+                  <div class="form-text small text-muted" id="searchFeedbackText">
+                    Ingresa el nombre y presiona <strong>Buscar</strong> o <kbd>Enter</kbd> para geolocalizarlo en OpenStreetMap.
+                  </div>
+
+                  <!-- Dropdown de Sugerencias de Búsqueda -->
+                  <div id="searchResultsDropdown" class="list-group shadow position-absolute w-100" style="display: none; z-index: 1050; max-height: 250px; overflow-y: auto; top: 72px;">
+                  </div>
+                </div>
+
+                <!-- Tarjeta con Datos Referenciales Encontrados -->
+                <div id="locationDetailsAlert" class="alert alert-light border shadow-sm py-2 px-3 small mb-3" style="display: none;">
+                  <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                      <div class="fw-bold text-primary mb-1">
+                        <i class="fa-solid fa-circle-check text-success me-1"></i><span id="foundPlaceName">Cerro El Plomo</span>
+                      </div>
+                      <div class="text-muted small" id="foundPlaceAddress" style="line-height: 1.3;">San José de Maipo, Chile</div>
+                    </div>
+                    <span class="badge bg-primary text-white" id="foundPlaceElevation" style="font-size: 0.8rem;">5.421 m</span>
                   </div>
                 </div>
 
@@ -657,7 +683,137 @@
     // Listeners para sincronizar cambios manuales de coordenadas con el mapa
     document.getElementById("latitude").addEventListener("change", syncInputsToMap);
     document.getElementById("longitude").addEventListener("change", syncInputsToMap);
+
+    // Listeners para buscador de OpenStreetMap
+    document.getElementById("btnSearchLocation").addEventListener("click", searchLocationInOpenStreetMap);
+    document.getElementById("mountainName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        searchLocationInOpenStreetMap();
+      }
+    });
+
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#searchResultsDropdown") && e.target.id !== "btnSearchLocation" && e.target.id !== "mountainName") {
+        document.getElementById("searchResultsDropdown").style.display = "none";
+      }
+    });
   });
+
+  // Búsqueda de ubicación en OpenStreetMap (Nominatim API)
+  async function searchLocationInOpenStreetMap() {
+    const input = document.getElementById("mountainName");
+    const query = input.value.trim();
+    if (!query) {
+      input.focus();
+      return;
+    }
+
+    const btn = document.getElementById("btnSearchLocation");
+    const feedback = document.getElementById("searchFeedbackText");
+    const dropdown = document.getElementById("searchResultsDropdown");
+    const detailsAlert = document.getElementById("locationDetailsAlert");
+
+    const originalBtnHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Buscando...';
+    feedback.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-1"></i>Consultando datos de la zona en OpenStreetMap...</span>';
+
+    try {
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error("Error en el servicio de geocodificación");
+      const data = await response.json();
+
+      if (data.results && data.results.length > 0) {
+        renderSearchResults(data.results);
+      } else {
+        dropdown.style.display = "none";
+        detailsAlert.style.display = "none";
+        feedback.innerHTML = `<span class="text-warning fw-semibold"><i class="fa-solid fa-triangle-exclamation me-1"></i>No se encontraron datos en OpenStreetMap para "<strong>${escapeHtml(query)}</strong>". Puedes marcar el punto directamente en el mapa interactivo.</span>`;
+      }
+    } catch (err) {
+      feedback.innerHTML = `<span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i>Error consultando OpenStreetMap: ${err.message}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnHtml;
+    }
+  }
+
+  function renderSearchResults(results) {
+    const dropdown = document.getElementById("searchResultsDropdown");
+    dropdown.innerHTML = "";
+
+    // Aplicar inmediatamente el primer resultado (más relevante)
+    applyLocationResult(results[0]);
+
+    if (results.length > 1) {
+      results.forEach((item) => {
+        const a = document.createElement("a");
+        a.href = "#";
+        a.className = "list-group-item list-group-item-action d-flex justify-content-between align-items-center small py-2";
+        a.innerHTML = `
+          <div class="pe-2">
+            <strong>${escapeHtml(item.name)}</strong>
+            <div class="text-muted text-truncate" style="max-width: 320px; font-size: 0.74rem;">${escapeHtml(item.display_name)}</div>
+            <div class="text-primary" style="font-size: 0.72rem;">Lat: ${item.latitude}, Lon: ${item.longitude}</div>
+          </div>
+          ${item.elevation ? `<span class="badge bg-secondary">${item.elevation.toLocaleString()} m</span>` : ''}
+        `;
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          applyLocationResult(item);
+          dropdown.style.display = "none";
+        });
+        dropdown.appendChild(a);
+      });
+      dropdown.style.display = "block";
+    } else {
+      dropdown.style.display = "none";
+    }
+  }
+
+  function applyLocationResult(item) {
+    // 1. Actualizar latitud, longitud y altitud
+    document.getElementById("latitude").value = item.latitude.toFixed(4);
+    document.getElementById("longitude").value = item.longitude.toFixed(4);
+    if (item.elevation && !isNaN(item.elevation)) {
+      document.getElementById("altitude").value = Math.round(item.elevation);
+    }
+
+    // 2. Actualizar campo de texto con el nombre normalizado
+    if (item.name) {
+      document.getElementById("mountainName").value = item.name;
+    }
+
+    // 3. Actualizar mapa OpenStreetMap y marcador
+    if (map) {
+      map.setView([item.latitude, item.longitude], 12);
+      if (currentMarker) {
+        currentMarker.setLatLng([item.latitude, item.longitude]);
+      } else {
+        currentMarker = L.marker([item.latitude, item.longitude], { draggable: true }).addTo(map);
+      }
+      currentMarker.bindPopup(`<strong>${escapeHtml(item.name)}</strong><br>${escapeHtml(item.display_name)}<br>Lat: ${item.latitude}, Lon: ${item.longitude}`).openPopup();
+    }
+
+    // 4. Mostrar tarjeta con datos referenciales encontrados
+    const detailsAlert = document.getElementById("locationDetailsAlert");
+    document.getElementById("foundPlaceName").innerText = item.name;
+    document.getElementById("foundPlaceAddress").innerText = item.display_name;
+    document.getElementById("foundPlaceElevation").innerText = item.elevation ? `${item.elevation.toLocaleString()} m` : 'Altitud no reg.';
+    detailsAlert.style.display = "block";
+
+    const feedback = document.getElementById("searchFeedbackText");
+    feedback.innerHTML = `<span class="text-success fw-semibold"><i class="fa-solid fa-check me-1"></i>Zona encontrada en OpenStreetMap: <strong>${escapeHtml(item.name)}</strong>. Datos de latitud, longitud y altitud actualizados.</span>`;
+  }
+
+  function escapeHtml(text) {
+    if (!text) return "";
+    return text.replace(/[&<>"']/g, function(m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+    });
+  }
 
   // Inicialización de Leaflet con capas de OpenStreetMap
   function initOpenStreetMap() {
@@ -694,6 +850,8 @@
 
     // Vacía el campo del nombre del lugar para priorizar la coordenada seleccionada
     document.getElementById("mountainName").value = "";
+    document.getElementById("locationDetailsAlert").style.display = "none";
+    document.getElementById("searchResultsDropdown").style.display = "none";
 
     // Actualiza o mueve el marcador
     if (currentMarker) {
@@ -753,6 +911,13 @@
     document.getElementById("altitude").value = alt;
     document.getElementById("route").value = route;
     document.getElementById("groupLevel").value = level;
+    document.getElementById("searchResultsDropdown").style.display = "none";
+
+    const detailsAlert = document.getElementById("locationDetailsAlert");
+    document.getElementById("foundPlaceName").innerText = name;
+    document.getElementById("foundPlaceAddress").innerText = route || "Coordenadas fijadas";
+    document.getElementById("foundPlaceElevation").innerText = `${alt.toLocaleString()} m`;
+    detailsAlert.style.display = "block";
 
     // Actualizar mapa y marcador
     if (map) {

@@ -517,6 +517,92 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+@app.get("/api/geocode")
+async def geocode_location(q: str):
+    """
+    Busca zonas geográficas y cumbres por nombre en OpenStreetMap (Nominatim API),
+    complementando con la elevación topográfica de Open-Meteo.
+    """
+    query = q.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Debe ingresar un término de búsqueda.")
+
+    results = []
+    headers = {"User-Agent": "MountainSafetyAdvisor/1.0 (info@mountainsafety.org)"}
+    
+    # 1. Búsqueda primaria en OpenStreetMap (Nominatim)
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": query, "format": "json", "addressdetails": 1, "limit": 5},
+                headers=headers
+            )
+            if resp.status_code == 200:
+                raw_items = resp.json()
+                for item in raw_items:
+                    lat = round(float(item["lat"]), 4)
+                    lon = round(float(item["lon"]), 4)
+                    display_name = item.get("display_name", "")
+                    
+                    # Consultar elevación para estas coordenadas en Open-Meteo Elevation
+                    elevation = None
+                    try:
+                        elev_resp = await client.get(
+                            "https://api.open-meteo.com/v1/elevation",
+                            params={"latitude": lat, "longitude": lon},
+                            timeout=3.0
+                        )
+                        if elev_resp.status_code == 200:
+                            elev_data = elev_resp.json()
+                            elev_list = elev_data.get("elevation", [])
+                            if elev_list and elev_list[0] is not None:
+                                elevation = round(float(elev_list[0]))
+                    except Exception as e_elev:
+                        logger.debug(f"No fue posible obtener elevación: {e_elev}")
+
+                    results.append({
+                        "name": item.get("name") or query,
+                        "display_name": display_name,
+                        "latitude": lat,
+                        "longitude": lon,
+                        "elevation": elevation,
+                        "type": item.get("type", "montaña"),
+                        "source": "OpenStreetMap Nominatim"
+                    })
+    except Exception as e:
+        logger.warning(f"Error consultando OpenStreetMap Nominatim: {e}")
+
+    # 2. Fallback a Open-Meteo Geocoding si no hubo resultados de OpenStreetMap
+    if not results:
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                om_resp = await client.get(
+                    "https://geocoding-api.open-meteo.com/v1/search",
+                    params={"name": query, "count": 5, "language": "es", "format": "json"}
+                )
+                if om_resp.status_code == 200:
+                    om_data = om_resp.json()
+                    for r in om_data.get("results", []):
+                        lat = round(float(r["latitude"]), 4)
+                        lon = round(float(r["longitude"]), 4)
+                        country = r.get("country", "")
+                        admin1 = r.get("admin1", "")
+                        disp = f"{r.get('name')}, {admin1}, {country}".strip(", ")
+                        results.append({
+                            "name": r.get("name"),
+                            "display_name": disp,
+                            "latitude": lat,
+                            "longitude": lon,
+                            "elevation": round(float(r.get("elevation"))) if r.get("elevation") else None,
+                            "type": "cumbre/relieve",
+                            "source": "Open-Meteo Geocoding"
+                        })
+        except Exception as e2:
+            logger.warning(f"Error en fallback de geocodificación: {e2}")
+
+    return {"query": query, "count": len(results), "results": results}
+
 @app.post("/api/analyze", response_model=ViabilityResponse)
 async def analyze_expedition(req: ExpeditionRequest):
     """

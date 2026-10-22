@@ -1027,21 +1027,33 @@
     const verdictTitle = document.getElementById("verdictTitle");
     const verdictSubtitle = document.getElementById("verdictSubtitle");
 
+    // Detección del nivel de riesgo EAWS reportado
+    let eawsNote = "";
+    if (/Nivel\s*1\s*[-–(]?\s*Bajo/i.test(data.analysis_report)) {
+      eawsNote = " (Peligro de Avalanchas: Nivel 1 - Bajo)";
+    } else if (/Nivel\s*2\s*[-–(]?\s*Moderado|Limitado/i.test(data.analysis_report)) {
+      eawsNote = " (Peligro de Avalanchas: Nivel 2 - Moderado)";
+    } else if (/Nivel\s*3\s*[-–(]?\s*Marcado/i.test(data.analysis_report)) {
+      eawsNote = " (Peligro de Avalanchas: Nivel 3 - Marcado)";
+    } else if (/Nivel\s*[45]/i.test(data.analysis_report)) {
+      eawsNote = " (Peligro de Avalanchas: Nivel 4/5 - Fuerte/Muy Fuerte)";
+    }
+
     if (data.verdict === "GO") {
       verdictAlert.className = "verdict-box verdict-go";
       verdictIcon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
       verdictTitle.innerText = "EXPEDICIÓN RECOMENDADA (GO)";
-      verdictSubtitle.innerText = "El análisis meteorológico e histórico nival indica condiciones favorables con margen operativo adecuado.";
+      verdictSubtitle.innerText = "Condiciones meteorológicas y estado nival favorables para una progresión segura con márgenes operativos estándar." + eawsNote;
     } else if (data.verdict === "NO_GO") {
       verdictAlert.className = "verdict-box verdict-no_go";
       verdictIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
       verdictTitle.innerText = "NO RECOMENDADA / ABORTAR (NO GO)";
-      verdictSubtitle.innerText = "Riesgo extremo por manto inestable, frente de tormenta o ráfagas incompatibles con la progresión segura.";
+      verdictSubtitle.innerText = "Riesgo operativo crítico identificado en la zona evaluada (factores hidro-meteorológicos adversos, terreno saturado, caída de rocas o ráfagas severas). Se aconseja posponer." + eawsNote;
     } else {
       verdictAlert.className = "verdict-box verdict-conditional";
       verdictIcon.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i>';
       verdictTitle.innerText = "RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA";
-      verdictSubtitle.innerText = "Se requiere cumplimiento estricto de horarios límite, aristas protegidas y equipamiento técnico completo.";
+      verdictSubtitle.innerText = "Ascenso viable bajo cumplimiento estricto de horarios de retorno, rutas protegidas y equipamiento técnico preventivo." + eawsNote;
     }
 
     // Parsear los 3 apartados del reporte

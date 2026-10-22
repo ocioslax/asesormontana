@@ -551,14 +551,78 @@ def simulate_expert_response(
     )
 
 def extract_verdict(analysis_text: str) -> str:
-    """Extrae la clasificación del veredicto a partir del informe generado."""
-    upper = analysis_text.upper()
-    if "[EXPEDICIÓN RECOMENDADA (GO)]" in upper or "EXPEDICIÓN RECOMENDADA" in upper:
-        return "GO"
-    elif "[NO RECOMENDADA / ABORTAR" in upper or "ABORTAR (NO GO)" in upper or "NO GO" in upper:
-        return "NO_GO"
-    elif "RECOMENDADA CON CONDICIONANTES" in upper or "CONDICIONANTES" in upper:
+    """
+    Extrae la clasificación del veredicto a partir de la Sección 3 del informe generado.
+    Evita falsos positivos provocados por la frase 'Go / No Go' en el título o en el texto explicativo.
+    """
+    if not analysis_text:
         return "CONDITIONAL"
+
+    # 1. Localizar la Sección 3 (Recomendación Final)
+    idx_sec3 = -1
+    for marker in ["3. Recomendación Final", "3. RECOMENDACIÓN FINAL", "3. Recomendación", "3. RECOMENDACIÓN"]:
+        pos = analysis_text.find(marker)
+        if pos != -1:
+            idx_sec3 = pos
+            break
+
+    # Si se encontró la Sección 3, descartar la línea del encabezado para no capturar "No Go" del título
+    if idx_sec3 != -1:
+        sec3_text = analysis_text[idx_sec3:]
+        lines = sec3_text.split("\n", 1)
+        target_text = lines[1] if len(lines) > 1 else lines[0]
+    else:
+        target_text = analysis_text
+
+    upper = target_text.upper()
+
+    # 2. Búsqueda jerárquica de patrones
+    # Prioridad A: NO RECOMENDADA / ABORTAR (debe ser una recomendación explícita de aborto)
+    is_no_go = (
+        "[NO RECOMENDADA" in upper or
+        "NO RECOMENDADA / ABORTAR" in upper or
+        "ABORTAR (NO GO)" in upper or
+        "[ABORTAR" in upper or
+        "EXPEDICIÓN NO RECOMENDADA" in upper or
+        "VEREDICTO: NO GO" in upper or
+        "VEREDICTO: [NO GO]" in upper or
+        "[NO GO]" in upper
+    )
+
+    # Prioridad B: RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA
+    is_conditional = (
+        "RECOMENDADA CON CONDICIONANTES" in upper or
+        "CONDICIONANTES / RUTA ALTERNATIVA" in upper or
+        "RUTA ALTERNATIVA" in upper or
+        "CONDICIONANTES" in upper or
+        "[CONDICIONADA" in upper
+    )
+
+    # Prioridad C: EXPEDICIÓN RECOMENDADA (GO)
+    is_go = (
+        "EXPEDICIÓN RECOMENDADA" in upper or
+        "[EXPEDICIÓN RECOMENDADA" in upper or
+        "[RECOMENDADA (GO)]" in upper or
+        "VEREDICTO: GO" in upper or
+        "VEREDICTO: [GO]" in upper or
+        "[GO]" in upper or
+        "ASCENSO RECOMENDADO" in upper
+    )
+
+    # Evaluación coherente
+    if is_no_go and not is_conditional and not is_go:
+        return "NO_GO"
+    elif is_conditional:
+        return "CONDITIONAL"
+    elif is_go:
+        return "GO"
+    elif is_no_go:
+        return "NO_GO"
+
+    # Si el análisis asigna peligro bajo y riesgo residual bajo
+    if "NIVEL 1" in upper or "NIVEL 1 - BAJO" in upper or "BAJO RIESGO" in upper:
+        return "GO"
+
     return "CONDITIONAL"
 
 @app.get("/", response_class=HTMLResponse)

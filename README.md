@@ -19,7 +19,7 @@ El **Asesor de Seguridad en Alta Montaña** es una plataforma web completa dise�
 * **IA / LLM:** Google Gemini (**Gemini Pro**) mediante el SDK `google-generativeai`. Incluye motor de contingencia y simulación experta en caso de ausencia de API key o intermitencia de red.
 * **Datos Meteorológicos:** Integración automática con **Open-Meteo API** (historial satelital de 14 días + proyección hasta fecha solicitada sin costo de API key) con fallback dinámico calibrado por altitud.
 * **Contenedores:** Docker (`Dockerfile` optimizado y seguro con usuario no-root) y `docker-compose.yml`.
-* **CI/CD:** GitHub Actions (`.github/workflows/main.yml` y `deploy.yml`) para validación de PRs en rama `development` y despliegue a **Vercel** (`vercel.json`).
+* **CI/CD:** GitHub Actions (`.github/workflows/main.yml` y `deploy.yml`) para validación de PRs, pruebas de sintaxis y construcción de imagen Docker para **Google Cloud Run**.
 
 ---
 
@@ -39,7 +39,6 @@ El **Asesor de Seguridad en Alta Montaña** es una plataforma web completa dise�
 ├── Dockerfile                               # Imagen Docker optimizada (Python 3.11-slim / Cloud Run)
 ├── docker-compose.yml                       # Orquestación local para desarrollo
 ├── Procfile                                 # Comando de inicio para PaaS / Cloud Run
-├── vercel.json                              # Adaptador Serverless para despliegue en Vercel
 ├── .github/
 │   └── workflows/
 │       ├── main.yml                         # Pipeline CI/CD principal
@@ -125,9 +124,9 @@ La interfaz web incluye botones de carga rápida ("Presets") para evaluar cumbre
 
 ---
 
-## 🚢 Despliegue en Vercel y Flujo CI/CD
+## 🚢 Despliegue en Google Cloud Run y Flujo CI/CD
 
 El repositorio está configurado para:
 1. **Pull Requests hacia `development`:** Ejecuta pruebas de validación de sintaxis, modelos Pydantic y construcción de contenedor Docker.
-2. **Merge hacia `main`:** Dispara el despliegue automático hacia **Vercel** mediante Vercel CLI utilizando el adaptador de serverless functions definido en `vercel.json`.
+2. **Despliegue en Google Cloud Run:** Construye el contenedor desde `Dockerfile` exponiendo el puerto `8080` (`uvicorn src.main:app`).
 

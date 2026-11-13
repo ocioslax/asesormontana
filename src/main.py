@@ -43,15 +43,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# System Prompt estricto definido en PASO 4
-SYSTEM_PROMPT = """Actúa como un especialista en seguridad en montaña y gestión del riesgo en alta montaña. Tu objetivo es analizar el estado de una zona o ruta de montaña específica que el usuario te consulte y entregar un informe estructurado de viabilidad y riesgo. El análisis lo debes hacer en consideración del diagnóstico del tiempo de las últimas dos semanas, y la proyección de la ventana completa de la expedición solicitada (fechas y horarios de inicio, día y hora de ataque a cumbre, y fecha y hora de término provistos en el prompt).
+PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
 
-Estructura tu respuesta EXACTAMENTE en los siguientes 3 apartados:
-**1. Estado de la Nieve y Viabilidad del Ascenso:** Analiza la estabilidad, cohesión y estructura del manto nivoso (presencia de nieve fresca, placas de viento, capas débiles o terreno glaciar/hielo) a lo largo de las fechas de la expedición y de manera específica durante el día y hora estimada de cumbre. Considera el ciclo diurno térmico (rehielo nocturno/matinal vs radiación solar y fusión de tarde). Determina si el estado actual y su evolución permiten una progresión segura. Especifica el equipamiento técnico mínimo requerido (piolet, crampones, raquetas, equipo de autorrescate en grietas/avalanchas).
-**2. Nivel de Riesgo General:** Asigna un nivel de peligro de avalanchas según la escala EAWS (Nivel 1-Bajo a Nivel 5-Muy Fuerte) e identifica el problema nivológico principal. Evalúa factores meteorológicos críticos en la cota de cumbre para la fecha y hora seleccionadas (sensación térmica por viento/wind chill, ráfagas, visibilidad, tormenta, UV). Define el riesgo residual operativo (Bajo, Moderado, Alto o Extremo).
-**3. Recomendación Final y Criterio 'Go / No Go':** Emite una recomendación categórica: [EXPEDICIÓN RECOMENDADA (Go)] / [RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA] / [NO RECOMENDADA / ABORTAR (No Go)]. Valida y califica explícitamente el cronograma operativo propuesto: hora de salida, fecha y hora de cumbre, y hora de retorno. Confirma si el horario en cumbre es seguro o si debe ajustarse (hora límite estricta de cumbre y turn-around time para evitar la pérdida de rehielo, caída de piedras o la noche en el descenso). Enumera los desencadenantes de aborto inmediato en terreno.
+def load_prompt(filename: str) -> str:
+    """Carga un archivo de prompt en formato Markdown desde src/prompts/."""
+    prompt_path = os.path.join(PROMPTS_DIR, filename)
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        return f.read().strip()
 
-*Nota: Si el usuario no especifica la ruta precisa o el nivel técnico del grupo, indica en el informe la necesidad de estos datos para una evaluación definitiva.*"""
+# System Prompt estricto definido en PASO 4 (externalizado en src/prompts/system_prompt.md)
+SYSTEM_PROMPT = load_prompt("system_prompt.md")
+USER_PROMPT_TEMPLATE = load_prompt("user_prompt.md")
 
 def normalize_expedition_schedule(
     start_date_str: Optional[str],
@@ -1233,39 +1235,26 @@ async def analyze_expedition(req: ExpeditionRequest):
         ventana_info = weather_data.get('ventana_expedicion', {})
         consultation_date_str = weather_data.get('consultation_date', str(date.today()))
 
-        user_prompt = f"""EVALUACIÓN DE EXPEDICIÓN EN ALTA MONTAÑA
-
-PARÁMETROS DE LA EXPEDICIÓN Y ZONA CONSULTADA:
-{json.dumps(weather_data.get('zona_consultada', {}), indent=2, ensure_ascii=False)}
-
-CRONOGRAMA OPERATIVO PROPUESTO (DURACIÓN TOTAL: {expedition_days} DÍAS / {expedition_hours} HORAS):
-- Partida / Inicio: {start_date_str} a las {start_time_str} hrs
-- Ataque a Cumbre (Hito Crítico): {summit_date_str} a las {summit_time_str} hrs (Tiempo estimado hasta cumbre: {sched['hours_to_summit']} hrs)
-- Retorno al campamento base o término: {end_date_str} a las {end_time_str} hrs
-- Resumen: {ventana_info.get('cronograma_resumen', f'{start_date_str} a {end_date_str}')}
-
-VENTANA DE LA EXPEDICIÓN Y DESGLOSE DIARIO:
-{json.dumps(ventana_info, indent=2, ensure_ascii=False)}
-
-MÉTRICAS Y SUMAS ACUMULADAS DE LA ZONA:
-{json.dumps(weather_data.get('sumas_y_metricas_zona', {}), indent=2, ensure_ascii=False)}
-
-CONTEXTO METEOROLÓGICO DETALLADO:
-Fuente de datos: {weather_data.get('source')}
-
-1. Diagnóstico del clima de las dos semanas previas a la fecha de consulta ({past_info.get('date_range', '14 días previos')}):
-{json.dumps(past_info, indent=2, ensure_ascii=False)}
-
-2. Proyección meteorológica desde la fecha de consulta hasta el término de la expedición ({forecast_info.get('date_range', f'hasta {end_date_str}')}):
-{json.dumps(forecast_info, indent=2, ensure_ascii=False)}
-
-INSTRUCCIONES CLAVE DE ANÁLISIS:
-1. Evalúa de forma prioritaria la jornada y horario de cumbre propuestos ({summit_date_str} a las {summit_time_str} hrs). Analiza si las condiciones de viento, temperatura, radiación solar y estabilidad nival a esa hora específica son viables o si se debe ajustar el horario de ataque.
-2. Analiza detalladamente la evolución del manto nivoso y el clima a lo largo de TODO el cronograma (días de aproximación, tránsito en altura, ataque a cumbre y descenso final).
-3. En la Sección 3, califica explícitamente el cronograma (hora de partida, horario en cumbre y hora de retorno) y valida la hora límite estricta de retorno (turn-around time) para evitar descensos peligrosos por nieve transformada o falta de luz.
-4. Entrega tu veredicto considerando si existe una ventana viable y segura para completar la expedición completa (ida, cumbre y regreso seguro).
-
-Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 3 apartados indicados en la instrucción del sistema."""
+        user_prompt = USER_PROMPT_TEMPLATE.format(
+            zona_consultada_json=json.dumps(weather_data.get('zona_consultada', {}), indent=2, ensure_ascii=False),
+            expedition_days=expedition_days,
+            expedition_hours=expedition_hours,
+            start_date_str=start_date_str,
+            start_time_str=start_time_str,
+            summit_date_str=summit_date_str,
+            summit_time_str=summit_time_str,
+            hours_to_summit=sched['hours_to_summit'],
+            end_date_str=end_date_str,
+            end_time_str=end_time_str,
+            cronograma_resumen=ventana_info.get('cronograma_resumen', f'{start_date_str} a {end_date_str}'),
+            ventana_info_json=json.dumps(ventana_info, indent=2, ensure_ascii=False),
+            sumas_metricas_json=json.dumps(weather_data.get('sumas_y_metricas_zona', {}), indent=2, ensure_ascii=False),
+            weather_source=weather_data.get('source'),
+            past_date_range=past_info.get('date_range', '14 días previos'),
+            past_info_json=json.dumps(past_info, indent=2, ensure_ascii=False),
+            forecast_date_range=forecast_info.get('date_range', f'hasta {end_date_str}'),
+            forecast_info_json=json.dumps(forecast_info, indent=2, ensure_ascii=False),
+        )
 
         # 3. Invocación asíncrona a Gemini Pro sin bloquear el loop de Uvicorn
         gemini_result = await asyncio.to_thread(

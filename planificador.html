@@ -1,0 +1,1773 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planificador de Ascenso | Dashboard de Seguridad en Alta Montaña</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Chart.js para el gráfico meteorológico -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    :root {
+      --adminator-sidebar-bg: #212529;
+      --adminator-sidebar-hover: #2c3238;
+      --adminator-primary: #0d6efd;
+      --adminator-success: #198754;
+      --adminator-warning: #ffc107;
+      --adminator-danger: #dc3545;
+      --adminator-body-bg: #f8f9fa;
+      --adminator-card-bg: #ffffff;
+      --adminator-border: #e9ecef;
+      --adminator-text-main: #333333;
+      --adminator-text-muted: #6c757d;
+      --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--adminator-body-bg);
+      color: var(--adminator-text-main);
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    .mono {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Layout Wrapper (Adminator) */
+    .app-wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar - Adminator Style */
+    .sidebar {
+      width: 260px;
+      background-color: var(--adminator-sidebar-bg);
+      color: #adb5bd;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-brand {
+      padding: 1.25rem 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-brand i {
+      color: #0dcaf0;
+      font-size: 1.3rem;
+    }
+
+    .sidebar-menu {
+      list-style: none;
+      padding: 1rem 0;
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    .sidebar-item {
+      margin-bottom: 0.25rem;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.75rem 1.5rem;
+      color: #adb5bd;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-link:hover, .sidebar-link.active {
+      color: #ffffff;
+      background-color: var(--adminator-sidebar-hover);
+      border-left: 4px solid #0dcaf0;
+    }
+
+    .sidebar-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.75rem;
+      color: #6c757d;
+    }
+
+    /* Main Content Area */
+    .main-panel {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    /* Top Navbar */
+    .top-navbar {
+      background: #ffffff;
+      border-bottom: 1px solid var(--adminator-border);
+      padding: 0.85rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    .navbar-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #212529;
+      margin: 0;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 50rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Content Container */
+    .content-area {
+      padding: 2rem;
+    }
+
+    /* Cards */
+    .card-adminator {
+      background: #ffffff;
+      border: 1px solid var(--adminator-border);
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+
+    .card-adminator-header {
+      padding: 1rem 1.5rem;
+      background-color: #ffffff;
+      border-bottom: 1px solid var(--adminator-border);
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-adminator-body {
+      padding: 1.5rem;
+    }
+
+    /* Preset Buttons */
+    .preset-pill {
+      font-size: 0.75rem;
+      cursor: pointer;
+      border: 1px solid #ced4da;
+      background: #f8f9fa;
+      padding: 0.3rem 0.7rem;
+      border-radius: 1rem;
+      transition: all 0.2s ease;
+      display: inline-block;
+      margin-right: 0.35rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .preset-pill:hover {
+      background: #e9ecef;
+      border-color: #0dcaf0;
+      color: #055160;
+    }
+
+    .preset-pill.active {
+      background-color: #e7f1ff;
+      border-color: var(--adminator-primary);
+      color: var(--adminator-primary);
+      font-weight: 600;
+    }
+
+    /* Mapa Contenedor */
+    .map-wrapper {
+      position: relative;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      border: 1px solid var(--adminator-border);
+    }
+
+    #planMap {
+      height: 480px;
+      width: 100%;
+      background: #e5e9ec;
+      z-index: 10;
+    }
+
+    /* Barra Flotante de Herramientas de Mapa */
+    .map-tools-bar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 500;
+      display: flex;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(6px);
+      padding: 5px 10px;
+      border-radius: 50rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--adminator-border);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-map-tool {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--adminator-text-main);
+      font-weight: 600;
+      font-size: 0.76rem;
+      padding: 4px 10px;
+      border-radius: 50rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-map-tool:hover {
+      background: var(--adminator-body-bg);
+      color: var(--adminator-primary);
+    }
+
+    .btn-map-tool.active {
+      background: var(--adminator-primary);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(13, 110, 253, 0.35);
+    }
+
+    /* HUD Inferior del Mapa - Estilo Adminator */
+    .map-hud {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      z-index: 500;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      color: var(--adminator-text-main, #212529);
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--adminator-border, #ced4da);
+      font-size: 0.76rem;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .map-hud-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .map-hud-divider {
+      width: 1px;
+      height: 14px;
+      background-color: var(--adminator-border, #dee2e6);
+    }
+
+    .map-hud .val {
+      font-family: var(--font-mono, monospace);
+      font-weight: 700;
+      color: var(--adminator-primary, #0d6efd);
+    }
+
+    /* Métricas Meteorológicas */
+    .meteo-hero {
+      background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+      color: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .meteo-hero__temp {
+      font-family: var(--font-mono);
+      font-size: 2.3rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .meteo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .meteo-metric {
+      background: var(--adminator-body-bg);
+      border: 1px solid var(--adminator-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .meteo-metric__label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--adminator-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 3px;
+    }
+
+    .meteo-metric__value {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--adminator-text-main);
+    }
+
+    /* Tabla de Pronóstico */
+    .forecast-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .forecast-table th {
+      color: var(--adminator-text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      padding: 6px 4px;
+      border-bottom: 1px solid var(--adminator-border);
+    }
+
+    .forecast-table td {
+      padding: 8px 4px;
+      border-bottom: 1px solid #f1f3f5;
+      vertical-align: middle;
+    }
+
+    .temp-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 0.74rem;
+    }
+
+    .temp-bar-bg {
+      flex: 1;
+      height: 6px;
+      background: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .temp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0d6efd, #dc3545);
+      border-radius: 4px;
+    }
+
+    /* Sismos */
+    .sismo-item {
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--adminator-border);
+      margin-bottom: 6px;
+      background: #ffffff;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      cursor: pointer;
+    }
+
+    .sismo-item:hover {
+      background: #f8f9fa;
+      border-color: #ced4da;
+    }
+
+    .sismo-mag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #ffffff;
+    }
+
+    .mag-green { background-color: var(--adminator-success); }
+    .mag-yellow { background-color: var(--adminator-warning); color: #212529; }
+    .mag-red { background-color: var(--adminator-danger); }
+
+    /* Rutas */
+    .route-card {
+      border: 1px solid var(--adminator-border);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #ffffff;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .route-card:hover {
+      border-color: var(--adminator-primary);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Pestañas de la columna derecha */
+    .nav-tabs-adminator {
+      border-bottom: 1px solid var(--adminator-border);
+      margin-bottom: 1rem;
+    }
+
+    .nav-tabs-adminator .nav-link {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--adminator-text-muted);
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0.5rem 0.9rem;
+      background: transparent;
+    }
+
+    .nav-tabs-adminator .nav-link:hover {
+      color: var(--adminator-text-main);
+      border-bottom-color: var(--adminator-border);
+    }
+
+    .nav-tabs-adminator .nav-link.active {
+      color: var(--adminator-primary);
+      border-bottom-color: var(--adminator-primary);
+      background: transparent;
+    }
+
+    @media (max-width: 991px) {
+      .app-wrapper { flex-direction: column; }
+      .sidebar { width: 100%; }
+      .content-area { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+  
+  <!-- ======================================================================
+       SIDEBAR (IDÉNTICO A INDEX.HTML)
+       ====================================================================== -->
+  <aside class="sidebar">
+    <a href="/" class="sidebar-brand">
+      <i class="fa-solid fa-mountain-sun"></i>
+      <span>Experto IA</span>
+    </a>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item">
+        <a href="/" class="sidebar-link">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Dashboard Viabilidad</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/planificador" class="sidebar-link active">
+          <i class="fa-solid fa-map-location-dot text-warning"></i>
+          <span>Planificador de Ascenso</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="#mapSection" class="sidebar-link">
+          <i class="fa-solid fa-compass"></i>
+          <span>Trazador de Ruta</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="#chartSection" class="sidebar-link">
+          <i class="fa-solid fa-cloud-sun-rain"></i>
+          <span>Pronóstico 24h & 7d</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div><strong>Plataforma:</strong> Seguridad en Montaña</div>
+      <div><strong>Módulo:</strong> Planificador Cartográfico</div>
+      <div><strong>Datos:</strong> Open-Meteo & USGS</div>
+    </div>
+  </aside>
+
+  <!-- ======================================================================
+       PANEL PRINCIPAL (MAIN PANEL)
+       ====================================================================== -->
+  <main class="main-panel">
+    
+    <!-- TOP NAVBAR -->
+    <header class="top-navbar">
+      <div class="d-flex align-items-center gap-3">
+        <h1 class="navbar-title">
+          <i class="fa-solid fa-map-location-dot text-primary me-2"></i>Planificador de Ascenso
+        </h1>
+      </div>
+
+      <div class="d-flex align-items-center gap-3">
+        <div id="systemHealthBadge" class="badge-status bg-success-subtle text-success border border-success-subtle">
+          <i class="fa-solid fa-circle-check"></i>
+          <span id="systemHealthText">Cartografía Activa</span>
+        </div>
+        <div class="text-muted small d-none d-lg-block">
+          <i class="fa-regular fa-calendar me-1"></i><span id="currentDateDisplay"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT AREA -->
+    <div class="content-area">
+      
+      <!-- HERO BANNER (ESTILO INDEX.HTML) -->
+      <div class="card-adminator bg-light border-0 shadow-sm p-3 mb-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <h4 class="fw-bold mb-1 text-dark">Planificador Cartográfico y Reducción del Riesgo</h4>
+            <p class="text-muted small mb-0">
+              Traza rutas de ascenso, consulta altitud, coordenadas, meteorología hiperlocal y aplica el <strong>Método de Werner Munter (MRM)</strong> para determinar la viabilidad del itinerario.
+            </p>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <a href="/" class="btn btn-outline-primary btn-sm fw-semibold shadow-sm">
+              <i class="fa-solid fa-gauge-high me-1"></i>Ir a Viabilidad "Go / No Go"
+            </a>
+            <span class="badge bg-secondary-subtle text-secondary border px-3 py-2 d-none d-sm-inline-flex align-items-center">
+              <i class="fa-solid fa-shield-halved me-1 text-primary"></i>Protocolo UIAA / EAWS
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN ROW -->
+      <div class="row">
+
+        <!-- ==============================================================
+             COLUMNA IZQUIERDA: MAPA CARTOGRÁFICO + GRÁFICO 24H Y TABLA 7D
+             ============================================================== -->
+        <div class="col-lg-7 col-xl-7">
+          
+          <!-- TARJETA DEL MAPA -->
+          <div class="card-adminator" id="mapSection">
+            <div class="card-adminator-header">
+              <span><i class="fa-solid fa-mountain text-primary me-2"></i>Mapa Cartográfico & Trazador de Rutas</span>
+              <span class="badge bg-light text-dark border">Relieve & Satélite</span>
+            </div>
+            
+            <div class="card-adminator-body p-3">
+              <!-- Selector de Cumbres Rápidas (Preset Pills de index.html) -->
+              <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold mb-1">Cumbres Destacadas (Carga Rápida):</label>
+                <div>
+                  <button type="button" class="preset-pill active" onclick="flyToLocation(-33.2333, -70.2167, 13, 'Cerro El Plomo (5.424 m)', this)">
+                    🇨🇱 Cerro El Plomo (5.424m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="flyToLocation(-33.7850, -69.8967, 12, 'Volcán San José (5.856 m)', this)">
+                    🇨🇱 Volcán San José (5.856m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="flyToLocation(-33.4350, -70.4720, 13, 'Cerro Provincia (2.750 m)', this)">
+                    🇨🇱 Cerro Provincia (2.750m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="flyToLocation(-33.3769, -70.5847, 14, 'Cerro Manquehue (1.636 m)', this)">
+                    🇨🇱 Cerro Manquehue (1.636m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="flyToLocation(-32.9558, -71.1167, 13, 'Cerro La Campana (1.880 m)', this)">
+                    🇨🇱 Cerro La Campana (1.880m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="flyToLocation(-39.4200, -71.9300, 13, 'Volcán Villarrica (2.847 m)', this)">
+                    🇨🇱 Volcán Villarrica (2.847m)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Contenedor del Mapa con Herramientas y HUD -->
+              <div class="map-wrapper">
+                <!-- Herramientas Flotantes -->
+                <div class="map-tools-bar">
+                  <button class="btn-map-tool active" id="btnModeMark" onclick="setMode('mark')">
+                    <i class="fa-solid fa-location-crosshairs"></i> Marcar Punto
+                  </button>
+                  <button class="btn-map-tool" id="btnModeDraw" onclick="setMode('draw')">
+                    <i class="fa-solid fa-pen-nib"></i> Dibujar Ruta
+                  </button>
+                  <button class="btn-map-tool text-danger" onclick="clearCurrentRoute()" title="Borrar ruta trazada">
+                    <i class="fa-regular fa-trash-can"></i> Limpiar
+                  </button>
+                  <div class="vr mx-1 my-1"></div>
+                  <button class="btn-map-tool" onclick="locateUser()" title="Mi ubicación">
+                    <i class="fa-solid fa-crosshairs"></i> GPS
+                  </button>
+                </div>
+
+                <!-- HUD Inferior del Mapa - Estilo Adminator -->
+                <div class="map-hud" id="mapHud">
+                  <div class="map-hud-item">
+                    <i class="fa-solid fa-location-dot text-danger"></i>
+                    <span class="text-muted small">Coords:</span>
+                    <span id="hudCoords" class="val">-33.2333°, -70.2167°</span>
+                  </div>
+                  <div class="map-hud-divider"></div>
+                  <div class="map-hud-item">
+                    <i class="fa-solid fa-mountain text-primary"></i>
+                    <span class="text-muted small">Altitud:</span>
+                    <span id="hudElev" class="val">5.424 m</span>
+                  </div>
+                  <div id="hudRouteBox" style="display: none; align-items: center; gap: 12px;">
+                    <div class="map-hud-divider"></div>
+                    <div class="map-hud-item">
+                      <i class="fa-solid fa-route text-success"></i>
+                      <span class="text-muted small">Ruta:</span>
+                      <span id="hudRouteDist" class="val">0.00 km</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Instancia Leaflet -->
+                <div id="planMap"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TARJETA DEL GRÁFICO METEOROLÓGICO 24H & TABLA 7D -->
+          <div class="card-adminator" id="chartSection">
+            <div class="card-adminator-header">
+              <span><i class="fa-solid fa-chart-area text-primary me-2"></i>Pronóstico Meteorológico Hiperlocal</span>
+              <span class="badge bg-light text-muted border mono" style="font-size: 0.7rem;">Open-Meteo API</span>
+            </div>
+            
+            <div class="card-adminator-body p-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-bold text-dark small">Ventana Horaria (Próximas 24 Horas): Temperatura vs Precipitación</div>
+                <div class="small text-muted">
+                  <span class="me-2"><i class="fa-solid fa-circle text-danger me-1"></i>Temp (°C)</span>
+                  <span><i class="fa-solid fa-square text-primary me-1"></i>Lluvia (%)</span>
+                </div>
+              </div>
+
+              <!-- Canvas Chart.js -->
+              <div style="height: 190px; position: relative;" class="mb-4">
+                <canvas id="chartHourlyWeather"></canvas>
+              </div>
+
+              <!-- Tabla Pronóstico 7 Días -->
+              <div class="fw-bold text-dark small mb-2"><i class="fa-regular fa-calendar-days text-primary me-1"></i>Pronóstico Extendido (Próximos 7 Días)</div>
+              <div class="table-responsive">
+                <table class="forecast-table">
+                  <thead>
+                    <tr>
+                      <th>Día</th>
+                      <th>Estado</th>
+                      <th>Prob. Precipitación</th>
+                      <th style="width: 45%;">Rango Mín / Máx</th>
+                    </tr>
+                  </thead>
+                  <tbody id="forecastTableBody">
+                    <tr>
+                      <td colspan="4" class="text-center py-3 text-muted">Cargando pronóstico extendido...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ==============================================================
+             COLUMNA DERECHA: PESTAÑAS (LUGAR, CLIMA, RUTAS, SISMOS, MUNTER)
+             ============================================================== -->
+        <div class="col-lg-5 col-xl-5">
+
+          <div class="card-adminator">
+            <div class="card-adminator-header">
+              <span><i class="fa-solid fa-sliders text-primary me-2"></i>Información del Sector</span>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="badgeSectorName">Cerro El Plomo</span>
+            </div>
+
+            <div class="card-adminator-body p-3">
+              
+              <!-- Pestañas Superiores de Navegación -->
+              <ul class="nav nav-tabs nav-tabs-adminator" role="tablist">
+                <li class="nav-item">
+                  <button class="nav-link active" onclick="switchRightTab('lugar', this)">
+                    <i class="fa-solid fa-location-dot me-1"></i>Lugar
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button class="nav-link" onclick="switchRightTab('clima', this)">
+                    <i class="fa-solid fa-cloud-sun me-1"></i>Clima
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button class="nav-link" onclick="switchRightTab('rutas', this)">
+                    <i class="fa-solid fa-route me-1"></i>Rutas
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button class="nav-link" onclick="switchRightTab('sismos', this)">
+                    <i class="fa-solid fa-chart-line me-1"></i>Sismos
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button class="nav-link" onclick="switchRightTab('munter', this)">
+                    <i class="fa-solid fa-shield-halved me-1"></i>Munter
+                  </button>
+                </li>
+              </ul>
+
+              <!-- CONTENEDOR DE PESTAÑAS -->
+              <div class="tab-content">
+                
+                <!-- TAB 1: LUGAR -->
+                <div class="tab-pane fade show active" id="pane-lugar">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0 text-dark" id="lugarTitulo">Cerro El Plomo</h6>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyCoordinates()" style="font-size: 0.72rem;">
+                      <i class="fa-regular fa-copy me-1"></i>Copiar Coordenadas
+                    </button>
+                  </div>
+                  <p class="text-muted small mb-3" id="lugarUbicacionTexto">Lo Barnechea, Provincia de Santiago, Región Metropolitana, Chile</p>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-6">
+                      <div class="p-2 rounded bg-light border">
+                        <div class="text-muted" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Altitud Estimada</div>
+                        <div class="mono fw-bold text-primary" style="font-size: 1.15rem;" id="lugarAltitud">5.424 m s.n.m.</div>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="p-2 rounded bg-light border">
+                        <div class="text-muted" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">País</div>
+                        <div class="fw-bold text-dark" style="font-size: 0.95rem;" id="lugarPais">Chile 🇨🇱</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <table class="table table-sm table-borderless mb-3" style="font-size: 0.8rem;">
+                    <tbody>
+                      <tr>
+                        <td class="text-muted py-1" style="width: 30%;">Latitud:</td>
+                        <td class="mono fw-semibold text-dark py-1" id="lugarLatDms">33° 14' 00" S</td>
+                        <td class="mono text-muted text-end py-1" id="lugarLatDec">-33.2333°</td>
+                      </tr>
+                      <tr>
+                        <td class="text-muted py-1">Longitud:</td>
+                        <td class="mono fw-semibold text-dark py-1" id="lugarLonDms">70° 13' 00" O</td>
+                        <td class="mono text-muted text-end py-1" id="lugarLonDec">-70.2167°</td>
+                      </tr>
+                      <tr>
+                        <td class="text-muted py-1">Comuna:</td>
+                        <td colspan="2" class="fw-semibold text-dark py-1" id="lugarComuna">Lo Barnechea</td>
+                      </tr>
+                      <tr>
+                        <td class="text-muted py-1">Región:</td>
+                        <td colspan="2" class="fw-semibold text-dark py-1" id="lugarRegion">Metropolitana de Santiago</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <!-- Tarjeta de Ruta Dibujada -->
+                  <div class="p-3 rounded border bg-light mb-3" id="cardRutaInfo" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <span class="fw-bold text-success small"><i class="fa-solid fa-route me-1"></i>Ruta Trazada</span>
+                      <span class="badge bg-success-subtle text-success border border-success-subtle" id="badgePtsRuta">0 pts</span>
+                    </div>
+                    <div class="row g-2 text-center mb-2">
+                      <div class="col-4">
+                        <div class="p-1 rounded bg-white border">
+                          <div class="text-muted" style="font-size: 0.65rem;">Distancia</div>
+                          <div class="mono fw-bold text-dark" id="rutaDistancia">0.00 km</div>
+                        </div>
+                      </div>
+                      <div class="col-4">
+                        <div class="p-1 rounded bg-white border">
+                          <div class="text-muted" style="font-size: 0.65rem;">Desnivel Est.</div>
+                          <div class="mono fw-bold text-dark" id="rutaDesnivel">+0 m</div>
+                        </div>
+                      </div>
+                      <div class="col-4">
+                        <div class="p-1 rounded bg-white border">
+                          <div class="text-muted" style="font-size: 0.65rem;">Tiempo Munter</div>
+                          <div class="mono fw-bold text-primary" id="rutaTiempo">0h 00m</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-sm btn-outline-secondary w-100" onclick="exportRouteGPX()" style="font-size: 0.74rem;">
+                        <i class="fa-solid fa-download me-1"></i>Descargar GPX
+                      </button>
+                      <button class="btn btn-sm btn-outline-danger" onclick="clearCurrentRoute()" title="Borrar">
+                        <i class="fa-regular fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="p-2 rounded bg-light border small text-muted" style="font-size: 0.75rem;">
+                    <i class="fa-solid fa-circle-info text-primary me-1"></i> Haz clic en el mapa para situar la cumbre o activa <strong>Dibujar Ruta</strong> para computar el track de ascenso.
+                  </div>
+                </div>
+
+                <!-- TAB 2: CLIMA -->
+                <div class="tab-pane fade" id="pane-clima">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0 text-dark" id="climaLocalidad">Clima Actual</h6>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="fetchWeatherData(currentLat, currentLon)">
+                      <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                  </div>
+
+                  <!-- Hero Clima -->
+                  <div class="meteo-hero">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <div class="text-white-50 small text-uppercase fw-semibold" id="climaFechaHora">Actualizado hoy</div>
+                        <div class="meteo-hero__temp" id="climaTempActual">--°C</div>
+                        <div class="small text-white-50 mt-1">Sensación térmica: <span class="text-white fw-bold mono" id="climaSensacion">--°C</span></div>
+                      </div>
+                      <div class="text-end">
+                        <div style="font-size: 2.5rem; line-height: 1;" id="climaIcono">☀️</div>
+                        <div class="badge bg-white text-dark mt-1" style="font-size: 0.72rem; font-weight: 600;" id="climaCondicion">Despejado</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 8 Métricas -->
+                  <div class="meteo-grid">
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-wind text-primary"></i> Viento</div>
+                      <div class="meteo-metric__value" id="climaViento">-- km/h</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-tornado text-warning"></i> Ráfagas</div>
+                      <div class="meteo-metric__value" id="climaRafagas">-- km/h</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-droplet text-info"></i> Humedad</div>
+                      <div class="meteo-metric__value" id="climaHumedad">--%</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-cloud text-secondary"></i> Nubosidad</div>
+                      <div class="meteo-metric__value" id="climaNubosidad">--%</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-gauge-high text-danger"></i> Presión</div>
+                      <div class="meteo-metric__value" id="climaPresion">-- hPa</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-sun text-warning"></i> UV Máx</div>
+                      <div class="meteo-metric__value" id="climaUvMax">--</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-regular fa-sun text-warning"></i> Amanecer</div>
+                      <div class="meteo-metric__value" id="climaAmanecer">--:--</div>
+                    </div>
+                    <div class="meteo-metric">
+                      <div class="meteo-metric__label"><i class="fa-solid fa-moon text-secondary"></i> Atardecer</div>
+                      <div class="meteo-metric__value" id="climaAtardecer">--:--</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB 3: RUTAS -->
+                <div class="tab-pane fade" id="pane-rutas">
+                  <div class="mb-3">
+                    <a href="https://es.wikiloc.com/wikiloc/map.do?q=Chile" target="_blank" rel="noopener" id="btnWikilocDirect" class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold py-2" style="font-size: 0.8rem;">
+                      <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir Explorador Wikiloc en esta zona
+                    </a>
+                  </div>
+                  <div class="fw-bold text-uppercase text-muted mb-2" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                    Rutas Clásicas Recomendadas
+                  </div>
+                  <div id="listaRutasMontaña"></div>
+                </div>
+
+                <!-- TAB 4: SISMOS -->
+                <div class="tab-pane fade" id="pane-sismos">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="small text-muted"><i class="fa-solid fa-tower-broadcast text-danger me-1"></i>Radio 300 km · Últimos 7 días</div>
+                    <span class="mono fw-bold text-dark small" id="sismosCount">-- eventos</span>
+                  </div>
+                  <div id="listaSismosContainer">
+                    <div class="text-center py-4 text-muted">
+                      <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+                      <div>Consultando red sísmica USGS...</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB 5: MÉTODO MUNTER -->
+                <div class="tab-pane fade" id="pane-munter">
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">1. Peligro Regional Boletín (1 a 5)</label>
+                    <select class="form-select form-select-sm" id="munterPeligro" onchange="calculateMunter()">
+                      <option value="1">1 - Débil (Riesgo Potencial: 2)</option>
+                      <option value="2">2 - Limitado (Riesgo Potencial: 4)</option>
+                      <option value="3" selected>3 - Notable (Riesgo Potencial: 8)</option>
+                      <option value="4">4 - Fuerte (Riesgo Potencial: 16)</option>
+                      <option value="5">5 - Muy Fuerte (Riesgo Potencial: 32)</option>
+                    </select>
+                  </div>
+
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">2. Pendiente e Inclinación</label>
+                    <select class="form-select form-select-sm" id="munterPendiente" onchange="calculateMunter()">
+                      <option value="1">Pendiente estándar (> 39°)</option>
+                      <option value="2" selected>Pendiente moderada (35° a 39°) [FR = 2]</option>
+                      <option value="3">Pendiente suave (< 35°) [FR = 3]</option>
+                      <option value="4">Pendiente muy suave (< 30°) [FR = 4]</option>
+                    </select>
+                  </div>
+
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold text-muted mb-1">3. Sector y Exposición</label>
+                    <select class="form-select form-select-sm" id="munterExposicion" onchange="calculateMunter()">
+                      <option value="1">Sector crítico indicado en boletín [FR = 1]</option>
+                      <option value="2" selected>Sector no crítico según boletín [FR = 2]</option>
+                      <option value="3">Sector opuesto / protegido [FR = 3]</option>
+                    </select>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label small fw-semibold text-muted mb-1">4. Grupo y Comportamiento</label>
+                    <select class="form-select form-select-sm" id="munterGrupo" onchange="calculateMunter()">
+                      <option value="1">Grupo grande sin espaciamiento [FR = 1]</option>
+                      <option value="2" selected>Grupo con distancias de seguridad [FR = 2]</option>
+                      <option value="3">Grupo reducido o solitario [FR = 3]</option>
+                    </select>
+                  </div>
+
+                  <!-- Veredicto Munter -->
+                  <div class="p-3 rounded border text-center mb-3" id="munterVerdictBox" style="background: #f8fafc;">
+                    <div class="text-muted small text-uppercase fw-semibold mb-1">Riesgo Residual (RR)</div>
+                    <div class="mono fw-bold" style="font-size: 1.6rem;" id="munterScore">1.00</div>
+                    <div class="fw-bold mt-1" id="munterStatusText" style="font-size: 0.82rem; color: #198754;">
+                      <i class="fa-solid fa-circle-check me-1"></i> RIESGO RESIDUAL ACEPTABLE (RR ≤ 1.0)
+                    </div>
+                  </div>
+
+                  <!-- Tiempos de marcha -->
+                  <div class="p-2 rounded bg-light border">
+                    <div class="row g-2 mb-2">
+                      <div class="col-6">
+                        <label class="form-label small text-muted mb-1">Desnivel (+m)</label>
+                        <input type="number" class="form-control form-control-sm mono" id="munterDesnivelInput" value="800" step="50" oninput="calculateMarchTime()">
+                      </div>
+                      <div class="col-6">
+                        <label class="form-label small text-muted mb-1">Distancia (km)</label>
+                        <input type="number" class="form-control form-control-sm mono" id="munterDistanciaInput" value="6.5" step="0.5" oninput="calculateMarchTime()">
+                      </div>
+                    </div>
+                    <div class="text-center">
+                      <div class="text-muted" style="font-size: 0.68rem;">Tiempo de Marcha Estimado</div>
+                      <div class="mono fw-bold text-primary" style="font-size: 1.2rem;" id="marchTimeResult">3h 37m</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<!-- Bootstrap Bundle JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  /* ==========================================================================
+     ESTADO GLOBAL
+     ========================================================================== */
+  let currentLat = -33.2333; // Cerro El Plomo por defecto
+  let currentLon = -70.2167;
+  let currentZoom = 13;
+  let currentElevation = 5424;
+
+  let currentMode = 'mark'; // 'mark' o 'draw'
+  let drawnPoints = [];     // Array de [lat, lon]
+  let routePolyline = null; // Instancia Leaflet de la línea
+  let clickMarker = null;   // Marcador del punto seleccionado
+  let earthquakeMarkersLayer = null; // Capa de marcadores de sismos
+
+  let weatherChartInstance = null; // Gráfico Chart.js
+
+  // Rutas Clásicas de Montaña
+  const RUTAS_MONTAÑA = [
+    {
+      id: "el-plomo",
+      nombre: "Cerro El Plomo (5.424 m) - Ruta Normal",
+      zona: "Valle Nevado / Yerba Loca",
+      lat: -33.2333,
+      lon: -70.2167,
+      distanciaKm: 34.0,
+      desnivelPositivo: 2600,
+      dificultad: "Alta Montaña",
+      tipo: "Expedición 3-4 Días",
+      badgeColor: "danger",
+      wikilocQuery: "Cerro El Plomo Ruta Normal"
+    },
+    {
+      id: "san-jose",
+      nombre: "Volcán San José (5.856 m) - Ruta Normal",
+      zona: "Cajón del Maipo",
+      lat: -33.7850,
+      lon: -69.8967,
+      distanciaKm: 28.0,
+      desnivelPositivo: 3300,
+      dificultad: "Alta Montaña",
+      tipo: "Expedición 3 Días",
+      badgeColor: "danger",
+      wikilocQuery: "Volcan San Jose Chile"
+    },
+    {
+      id: "provincia",
+      nombre: "Cerro Provincia (2.750 m) - Puente Ñilhue",
+      zona: "Precordillera Santiago",
+      lat: -33.4350,
+      lon: -70.4720,
+      distanciaKm: 16.5,
+      desnivelPositivo: 1950,
+      dificultad: "Media - Alta",
+      tipo: "Trekking 1-2 Días",
+      badgeColor: "warning",
+      wikilocQuery: "Cerro Provincia Puente Nilhue"
+    },
+    {
+      id: "manquehue",
+      nombre: "Cerro Manquehue (1.636 m) - El Golf",
+      zona: "Vitacura / Lo Barnechea",
+      lat: -33.3769,
+      lon: -70.5847,
+      distanciaKm: 5.2,
+      desnivelPositivo: 750,
+      dificultad: "Media",
+      tipo: "Trekking Por el Día",
+      badgeColor: "success",
+      wikilocQuery: "Cerro Manquehue Vía El Golf"
+    },
+    {
+      id: "campana",
+      nombre: "Cerro La Campana (1.880 m) - Sendero Andinista",
+      zona: "Olmué / Granizo",
+      lat: -32.9558,
+      lon: -71.1167,
+      distanciaKm: 12.0,
+      desnivelPositivo: 1450,
+      dificultad: "Media",
+      tipo: "Trekking Por el Día",
+      badgeColor: "success",
+      wikilocQuery: "Cerro La Campana Sendero Andinista"
+    },
+    {
+      id: "villarrica",
+      nombre: "Volcán Villarrica (2.847 m) - Ascenso Tradicional",
+      zona: "Pucón, Región de la Araucanía",
+      lat: -39.4200,
+      lon: -71.9300,
+      distanciaKm: 9.8,
+      desnivelPositivo: 1400,
+      dificultad: "Media - Nieve",
+      tipo: "Ascenso 1 Día",
+      badgeColor: "primary",
+      wikilocQuery: "Volcan Villarrica Pucón"
+    }
+  ];
+
+  /* ==========================================================================
+     INICIALIZACIÓN DEL MAPA
+     ========================================================================== */
+  const map = L.map('planMap', {
+    zoomControl: false
+  }).setView([currentLat, currentLon], currentZoom);
+
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  const openTopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17,
+    attribution: '&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap'
+  });
+
+  const esriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri'
+  });
+
+  const esriWorldTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri'
+  });
+
+  const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  });
+
+  openTopoMap.addTo(map);
+
+  const baseLayers = {
+    "Relieve Topográfico": openTopoMap,
+    "Satélite Alta Resolución": esriImagery,
+    "Esri Topo": esriWorldTopo,
+    "OpenStreetMap": osmStandard
+  };
+
+  L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+  L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
+
+  earthquakeMarkersLayer = L.layerGroup().addTo(map);
+
+  clickMarker = L.marker([currentLat, currentLon], {
+    title: "Punto Seleccionado",
+    draggable: true
+  }).addTo(map);
+
+  clickMarker.on('dragend', function(e) {
+    const coord = e.target.getLatLng();
+    selectLocation(coord.lat, coord.lng, "Punto marcado");
+  });
+
+  /* ==========================================================================
+     INTERACCIÓN DEL MAPA
+     ========================================================================== */
+  map.on('click', function(e) {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+
+    if (currentMode === 'mark') {
+      selectLocation(lat, lon, "Punto en el mapa");
+    } else if (currentMode === 'draw') {
+      addPointToRoute(lat, lon);
+    }
+  });
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('btnModeMark').classList.toggle('active', mode === 'mark');
+    document.getElementById('btnModeDraw').classList.toggle('active', mode === 'draw');
+
+    if (mode === 'draw') {
+      document.getElementById('planMap').style.cursor = 'crosshair';
+    } else {
+      document.getElementById('planMap').style.cursor = '';
+    }
+  }
+
+  function addPointToRoute(lat, lon) {
+    drawnPoints.push([lat, lon]);
+
+    if (!routePolyline) {
+      routePolyline = L.polyline(drawnPoints, {
+        color: '#dc3545',
+        weight: 4,
+        opacity: 0.85,
+        dashArray: '2, 6'
+      }).addTo(map);
+    } else {
+      routePolyline.setLatLngs(drawnPoints);
+    }
+
+    L.circleMarker([lat, lon], {
+      radius: 4,
+      fillColor: '#dc3545',
+      color: '#ffffff',
+      weight: 1.5,
+      fillOpacity: 1
+    }).addTo(map);
+
+    updateRouteCalculations();
+  }
+
+  function clearCurrentRoute() {
+    drawnPoints = [];
+    if (routePolyline) {
+      map.removeLayer(routePolyline);
+      routePolyline = null;
+    }
+    map.eachLayer(function(layer) {
+      if (layer instanceof L.CircleMarker && layer !== clickMarker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    document.getElementById('cardRutaInfo').style.display = 'none';
+    document.getElementById('hudRouteBox').style.display = 'none';
+  }
+
+  function updateRouteCalculations() {
+    if (drawnPoints.length < 2) return;
+
+    let totalDistMeters = 0;
+    for (let i = 0; i < drawnPoints.length - 1; i++) {
+      const p1 = L.latLng(drawnPoints[i][0], drawnPoints[i][1]);
+      const p2 = L.latLng(drawnPoints[i + 1][0], drawnPoints[i + 1][1]);
+      totalDistMeters += p1.distanceTo(p2);
+    }
+
+    const totalKm = (totalDistMeters / 1000).toFixed(2);
+    const estDesnivel = Math.round(totalKm * 130);
+    
+    const hours = (estDesnivel / 400) + (totalDistMeters / 4000);
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+
+    document.getElementById('cardRutaInfo').style.display = 'block';
+    document.getElementById('badgePtsRuta').innerText = `${drawnPoints.length} pts`;
+    document.getElementById('rutaDistancia').innerText = `${totalKm} km`;
+    document.getElementById('rutaDesnivel').innerText = `+${estDesnivel} m`;
+    document.getElementById('rutaTiempo').innerText = `${h}h ${m < 10 ? '0' : ''}${m}m`;
+
+    document.getElementById('hudRouteBox').style.display = 'inline-flex';
+    document.getElementById('hudRouteDist').innerText = `${totalKm} km`;
+
+    document.getElementById('munterDistanciaInput').value = totalKm;
+    document.getElementById('munterDesnivelInput').value = estDesnivel;
+    calculateMarchTime();
+  }
+
+  function exportRouteGPX() {
+    if (drawnPoints.length === 0) return;
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="MountainAdvisorPlanner">\n  <trk>\n    <name>Ruta Planificada</name>\n    <trkseg>\n`;
+    drawnPoints.forEach(pt => {
+      gpx += `      <trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
+    });
+    gpx += `    </trkseg>\n  </trk>\n</gpx>`;
+
+    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ruta_${Math.round(currentLat*100)}_${Math.round(currentLon*100)}.gpx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* ==========================================================================
+     SELECCIÓN DE UBICACIÓN
+     ========================================================================== */
+  function selectLocation(lat, lon, label) {
+    currentLat = lat;
+    currentLon = lon;
+
+    clickMarker.setLatLng([lat, lon]);
+
+    const dmsLat = toDMS(lat, 'S', 'N');
+    const dmsLon = toDMS(lon, 'O', 'E');
+
+    document.getElementById('hudCoords').innerText = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+    document.getElementById('lugarLatDec').innerText = `${lat.toFixed(4)}°`;
+    document.getElementById('lugarLonDec').innerText = `${lon.toFixed(4)}°`;
+    document.getElementById('lugarLatDms').innerText = dmsLat;
+    document.getElementById('lugarLonDms').innerText = dmsLon;
+
+    const wikilocUrl = `https://es.wikiloc.com/wikiloc/map.do?lat=${lat}&lon=${lon}&z=13`;
+    document.getElementById('btnWikilocDirect').href = wikilocUrl;
+
+    fetchElevation(lat, lon);
+    fetchGeocoding(lat, lon, label);
+    fetchWeatherData(lat, lon);
+    fetchRecentEarthquakes(lat, lon);
+  }
+
+  function flyToLocation(lat, lon, zoom, label, btnEl) {
+    if (btnEl) {
+      document.querySelectorAll('.preset-pill').forEach(b => b.classList.remove('active'));
+      btnEl.classList.add('active');
+    }
+    map.flyTo([lat, lon], zoom, { duration: 1.2 });
+    selectLocation(lat, lon, label);
+  }
+
+  function locateUser() {
+    if (!navigator.geolocation) {
+      alert("Geolocalización no soportada.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => flyToLocation(pos.coords.latitude, pos.coords.longitude, 13, "Mi Ubicación"),
+      (err) => alert("No se pudo obtener la ubicación: " + err.message)
+    );
+  }
+
+  function toDMS(val, negChar, posChar) {
+    const isNeg = val < 0;
+    const absVal = Math.abs(val);
+    const deg = Math.floor(absVal);
+    const minDec = (absVal - deg) * 60;
+    const min = Math.floor(minDec);
+    const sec = Math.round((minDec - min) * 60);
+    return `${deg}° ${min}' ${sec}" ${isNeg ? negChar : posChar}`;
+  }
+
+  function copyCoordinates() {
+    const text = `${currentLat.toFixed(5)}, ${currentLon.toFixed(5)}`;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`Coordenadas copiadas al portapapeles:\n${text}`);
+    });
+  }
+
+  /* ==========================================================================
+     APIS (ELEVACIÓN & NOMINATIM)
+     ========================================================================== */
+  async function fetchElevation(lat, lon) {
+    try {
+      const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
+      const data = await res.json();
+      if (data && data.elevation && data.elevation.length > 0) {
+        currentElevation = Math.round(data.elevation[0]);
+        document.getElementById('lugarAltitud').innerText = `${currentElevation.toLocaleString('es-CL')} m s.n.m.`;
+        document.getElementById('hudElev').innerText = `${currentElevation.toLocaleString('es-CL')} m`;
+      }
+    } catch (e) {
+      console.warn("Error elevación:", e);
+    }
+  }
+
+  async function fetchGeocoding(lat, lon, fallbackLabel) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12&addressdetails=1`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+      const data = await res.json();
+
+      if (data && data.address) {
+        const addr = data.address;
+        const nombre = data.name || addr.mount || addr.peak || addr.natural || addr.tourism || fallbackLabel || "Área Cordillerana";
+        const comuna = addr.county || addr.municipality || addr.city || addr.town || "Zona de Montaña";
+        const region = addr.state || "Región Cordillerana";
+        const pais = addr.country ? `${addr.country} 🇨🇱` : "Chile 🇨🇱";
+
+        document.getElementById('lugarTitulo').innerText = nombre;
+        document.getElementById('badgeSectorName').innerText = nombre;
+        document.getElementById('climaLocalidad').innerText = `Clima en ${nombre}`;
+        document.getElementById('lugarUbicacionTexto').innerText = `${comuna}, ${region}, ${pais}`;
+        document.getElementById('lugarComuna').innerText = comuna;
+        document.getElementById('lugarRegion').innerText = region;
+        document.getElementById('lugarPais').innerText = pais;
+      } else {
+        document.getElementById('lugarTitulo').innerText = fallbackLabel || "Punto Seleccionado";
+        document.getElementById('badgeSectorName').innerText = fallbackLabel || "Punto";
+      }
+    } catch (e) {
+      document.getElementById('lugarTitulo').innerText = fallbackLabel || "Sector de Montaña";
+    }
+  }
+
+  /* ==========================================================================
+     METEOROLOGÍA (OPEN-METEO)
+     ========================================================================== */
+  async function fetchWeatherData(lat, lon) {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=temperature_2m,precipitation_probability,precipitation,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max&timezone=auto`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data || !data.current) return;
+
+      const cur = data.current;
+      document.getElementById('climaTempActual').innerText = `${Math.round(cur.temperature_2m)}°C`;
+      document.getElementById('climaSensacion').innerText = `${Math.round(cur.apparent_temperature)}°C`;
+      document.getElementById('climaViento').innerText = `${Math.round(cur.wind_speed_10m)} km/h`;
+      document.getElementById('climaRafagas').innerText = `${Math.round(cur.wind_gusts_10m)} km/h`;
+      document.getElementById('climaHumedad').innerText = `${Math.round(cur.relative_humidity_2m)}%`;
+      document.getElementById('climaNubosidad').innerText = `${Math.round(cur.cloud_cover)}%`;
+      document.getElementById('climaPresion').innerText = `${Math.round(cur.surface_pressure)} hPa`;
+
+      const wInfo = getWeatherInfo(cur.weather_code);
+      document.getElementById('climaIcono').innerText = wInfo.icon;
+      document.getElementById('climaCondicion').innerText = wInfo.desc;
+
+      if (data.daily) {
+        const d = data.daily;
+        document.getElementById('climaUvMax').innerText = d.uv_index_max[0] ? `${d.uv_index_max[0].toFixed(1)}` : '--';
+        if (d.sunrise && d.sunrise[0]) {
+          document.getElementById('climaAmanecer').innerText = d.sunrise[0].split('T')[1].substring(0, 5);
+        }
+        if (d.sunset && d.sunset[0]) {
+          document.getElementById('climaAtardecer').innerText = d.sunset[0].split('T')[1].substring(0, 5);
+        }
+        render7DayForecast(data.daily);
+      }
+
+      if (data.hourly) {
+        renderHourlyChart(data.hourly);
+      }
+    } catch (e) {
+      console.error("Error meteorología:", e);
+    }
+  }
+
+  function getWeatherInfo(code) {
+    if (code === 0) return { icon: "☀️", desc: "Despejado" };
+    if (code === 1) return { icon: "🌤️", desc: "Mayormente despejado" };
+    if (code === 2) return { icon: "⛅", desc: "Parcialmente nublado" };
+    if (code === 3) return { icon: "☁️", desc: "Nublado" };
+    if (code >= 45 && code <= 48) return { icon: "🌫️", desc: "Niebla" };
+    if (code >= 51 && code <= 55) return { icon: "🌦️", desc: "Llovizna" };
+    if (code >= 61 && code <= 65) return { icon: "🌧️", desc: "Lluvia" };
+    if (code >= 71 && code <= 77) return { icon: "❄️", desc: "Nieve" };
+    if (code >= 80 && code <= 82) return { icon: "🌧️", desc: "Chubascos" };
+    if (code >= 85 && code <= 86) return { icon: "🌨️", desc: "Chubascos de nieve" };
+    if (code >= 95) return { icon: "⛈️", desc: "Tormenta eléctrica" };
+    return { icon: "⛅", desc: "Nubosidad variable" };
+  }
+
+  function renderHourlyChart(hourly) {
+    const now = new Date();
+    const currentHourIso = now.toISOString().slice(0, 13);
+
+    let startIdx = 0;
+    if (hourly.time) {
+      const idx = hourly.time.findIndex(t => t.startsWith(currentHourIso));
+      if (idx !== -1) startIdx = idx;
+    }
+
+    const labels = [];
+    const temps = [];
+    const rainProbs = [];
+
+    for (let i = startIdx; i < startIdx + 24 && i < hourly.time.length; i++) {
+      labels.push(hourly.time[i].split('T')[1].substring(0, 5));
+      temps.push(hourly.temperature_2m[i]);
+      rainProbs.push(hourly.precipitation_probability[i]);
+    }
+
+    const ctx = document.getElementById('chartHourlyWeather').getContext('2d');
+
+    if (weatherChartInstance) {
+      weatherChartInstance.destroy();
+    }
+
+    weatherChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            type: 'line',
+            label: 'Temperatura (°C)',
+            data: temps,
+            borderColor: '#dc3545',
+            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+            borderWidth: 2,
+            tension: 0.35,
+            yAxisID: 'yTemp',
+            pointRadius: 1.5,
+            pointHoverRadius: 4
+          },
+          {
+            type: 'bar',
+            label: 'Prob. Lluvia (%)',
+            data: rainProbs,
+            backgroundColor: 'rgba(13, 110, 253, 0.5)',
+            borderColor: '#0d6efd',
+            borderWidth: 1,
+            yAxisID: 'yRain',
+            barPercentage: 0.6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: (c) => c.dataset.type === 'line' ? ` Temp: ${c.parsed.y}°C` : ` Prob. Lluvia: ${c.parsed.y}%`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { family: 'JetBrains Mono', size: 9 }, maxTicksLimit: 8 }
+          },
+          yTemp: {
+            type: 'linear',
+            position: 'left',
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { font: { family: 'JetBrains Mono', size: 9 }, callback: v => `${v}°` }
+          },
+          yRain: {
+            type: 'linear',
+            position: 'right',
+            min: 0,
+            max: 100,
+            grid: { display: false },
+            ticks: { font: { family: 'JetBrains Mono', size: 9 }, callback: v => `${v}%` }
+          }
+        }
+      }
+    });
+  }
+
+  function render7DayForecast(daily) {
+    const tbody = document.getElementById('forecastTableBody');
+    tbody.innerHTML = '';
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+    for (let i = 0; i < daily.time.length && i < 7; i++) {
+      const parts = daily.time[i].split('-');
+      const dObj = new Date(parts[0], parts[1] - 1, parts[2]);
+      const dayName = i === 0 ? 'Hoy' : `${days[dObj.getDay()]} ${parts[2]}`;
+
+      const code = daily.weather_code[i];
+      const wInfo = getWeatherInfo(code);
+      const rainProb = daily.precipitation_probability_max[i] || 0;
+      const rainMm = daily.precipitation_sum[i] || 0;
+      const minT = Math.round(daily.temperature_2m_min[i]);
+      const maxT = Math.round(daily.temperature_2m_max[i]);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-bold text-dark">${dayName}</td>
+        <td><span>${wInfo.icon} <span class="d-none d-sm-inline small text-muted">${wInfo.desc}</span></span></td>
+        <td>
+          <span class="mono fw-semibold ${rainProb > 40 ? 'text-primary' : 'text-muted'}">${rainProb}%</span>
+          <span class="text-muted" style="font-size: 0.68rem;">(${rainMm.toFixed(1)}mm)</span>
+        </td>
+        <td>
+          <div class="temp-bar-wrap">
+            <span class="text-primary">${minT}°</span>
+            <div class="temp-bar-bg"><div class="temp-bar-fill" style="width: 100%;"></div></div>
+            <span class="text-danger">${maxT}°</span>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  /* ==========================================================================
+     SISMOS (USGS)
+     ========================================================================== */
+  async function fetchRecentEarthquakes(lat, lon) {
+    const container = document.getElementById('listaSismosContainer');
+    container.innerHTML = `
+      <div class="text-center py-4 text-muted">
+        <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+        <div>Consultando sismología USGS...</div>
+      </div>
+    `;
+
+    try {
+      const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=300&minmagnitude=2.5&orderby=time&limit=10`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      earthquakeMarkersLayer.clearLayers();
+
+      if (!data || !data.features || data.features.length === 0) {
+        container.innerHTML = `<div class="p-3 text-center text-muted small">Sin sismos recientes en 300 km.</div>`;
+        document.getElementById('sismosCount').innerText = `0 eventos`;
+        return;
+      }
+
+      document.getElementById('sismosCount').innerText = `${data.features.length} eventos`;
+      container.innerHTML = '';
+
+      data.features.forEach(eq => {
+        const props = eq.properties;
+        const geom = eq.geometry;
+        const eqLat = geom.coordinates[1];
+        const eqLon = geom.coordinates[0];
+        const depth = geom.coordinates[2];
+        const mag = props.mag ? props.mag.toFixed(1) : '?';
+        const distKm = Math.round(L.latLng(lat, lon).distanceTo(L.latLng(eqLat, eqLon)) / 1000);
+
+        const elapsedMin = Math.round((Date.now() - props.time) / 60000);
+        let timeAgo = elapsedMin >= 60 ? `${Math.floor(elapsedMin / 60)}h hace` : `${elapsedMin} min`;
+
+        let magClass = 'mag-green';
+        let markerColor = '#198754';
+        if (props.mag >= 4.5) {
+          magClass = 'mag-red';
+          markerColor = '#dc3545';
+        } else if (props.mag >= 3.5) {
+          magClass = 'mag-yellow';
+          markerColor = '#ffc107';
+        }
+
+        const eqMarker = L.circleMarker([eqLat, eqLon], {
+          radius: Math.max(4, (props.mag || 3) * 2),
+          fillColor: markerColor,
+          color: '#ffffff',
+          weight: 1.5,
+          fillOpacity: 0.7
+        }).addTo(earthquakeMarkersLayer);
+
+        eqMarker.bindPopup(`<strong>Sismo M ${mag}</strong><br>${props.place}<br>Prof: ${depth} km<br>${timeAgo}`);
+
+        const div = document.createElement('div');
+        div.className = 'sismo-item d-flex align-items-center gap-2';
+        div.onclick = () => { map.panTo([eqLat, eqLon]); eqMarker.openPopup(); };
+        div.innerHTML = `
+          <div class="sismo-mag ${magClass}">${mag}</div>
+          <div class="flex-grow-1 overflow-hidden">
+            <div class="fw-bold text-dark text-truncate" style="font-size: 0.8rem;">${props.place}</div>
+            <div class="d-flex align-items-center gap-2 text-muted" style="font-size: 0.72rem;">
+              <span>Prof: <strong class="mono">${depth}km</strong></span>
+              <span>·</span>
+              <span>A <strong class="mono">${distKm}km</strong></span>
+            </div>
+          </div>
+          <div class="text-end text-muted mono" style="font-size: 0.7rem;">${timeAgo}</div>
+        `;
+        container.appendChild(div);
+      });
+    } catch (e) {
+      container.innerHTML = `<div class="p-3 text-center text-danger small">Error consultando sismos.</div>`;
+    }
+  }
+
+  /* ==========================================================================
+     RUTAS DE MONTAÑA
+     ========================================================================== */
+  function renderRutasMontaña() {
+    const container = document.getElementById('listaRutasMontaña');
+    container.innerHTML = '';
+
+    RUTAS_MONTAÑA.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'route-card';
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <div class="fw-bold text-dark" style="font-size: 0.82rem;">${r.nombre}</div>
+          <span class="badge bg-${r.badgeColor}-subtle text-${r.badgeColor} border border-${r.badgeColor}-subtle" style="font-size: 0.65rem;">${r.dificultad}</span>
+        </div>
+        <div class="text-muted small mb-1" style="font-size: 0.72rem;"><i class="fa-solid fa-location-dot me-1"></i>${r.zona}</div>
+        <div class="d-flex align-items-center gap-2 mono text-muted mb-2" style="font-size: 0.72rem;">
+          <span><i class="fa-solid fa-arrows-left-right text-primary"></i> ${r.distanciaKm} km</span>
+          <span>·</span>
+          <span><i class="fa-solid fa-arrow-trend-up text-success"></i> +${r.desnivelPositivo} m</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-primary w-100 py-1" onclick="flyToLocation(${r.lat}, ${r.lon}, 13, '${r.nombre}')" style="font-size: 0.72rem;">
+            <i class="fa-regular fa-eye me-1"></i>Ver en Mapa
+          </button>
+          <a href="https://es.wikiloc.com/wikiloc/map.do?q=${encodeURIComponent(r.wikilocQuery)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success py-1 px-3" style="font-size: 0.72rem;" title="Abrir en Wikiloc">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  /* ==========================================================================
+     MÉTODO MUNTER
+     ========================================================================== */
+  function calculateMunter() {
+    const peligro = parseInt(document.getElementById('munterPeligro').value);
+    const frPendiente = parseInt(document.getElementById('munterPendiente').value);
+    const frExposicion = parseInt(document.getElementById('munterExposicion').value);
+    const frGrupo = parseInt(document.getElementById('munterGrupo').value);
+
+    const riesgoPotencialMap = { 1: 2, 2: 4, 3: 8, 4: 16, 5: 32 };
+    const RP = riesgoPotencialMap[peligro] || 8;
+    const residual = RP / (frPendiente * frExposicion * frGrupo);
+
+    const scoreEl = document.getElementById('munterScore');
+    const statusEl = document.getElementById('munterStatusText');
+    const boxEl = document.getElementById('munterVerdictBox');
+
+    scoreEl.innerText = residual.toFixed(2);
+
+    if (residual <= 1.0) {
+      statusEl.innerHTML = `<i class="fa-solid fa-circle-check me-1"></i> RIESGO RESIDUAL ACEPTABLE (RR ≤ 1.0)`;
+      statusEl.style.color = '#198754';
+      boxEl.style.background = '#f0fdf4';
+      boxEl.style.borderColor = '#bbf7d0';
+    } else {
+      statusEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i> RIESGO RESIDUAL CRÍTICO (RR > 1.0)`;
+      statusEl.style.color = '#dc3545';
+      boxEl.style.background = '#fef2f2';
+      boxEl.style.borderColor = '#fecaca';
+    }
+  }
+
+  function calculateMarchTime() {
+    const desnivel = parseFloat(document.getElementById('munterDesnivelInput').value) || 0;
+    const distancia = parseFloat(document.getElementById('munterDistanciaInput').value) || 0;
+    const totalHours = (desnivel / 400) + (distancia / 4);
+    const h = Math.floor(totalHours);
+    const m = Math.round((totalHours - h) * 60);
+    document.getElementById('marchTimeResult').innerText = `${h}h ${m < 10 ? '0' : ''}${m}m`;
+  }
+
+  /* ==========================================================================
+     CAMBIO DE PESTAÑAS DERECHAS
+     ========================================================================== */
+  function switchRightTab(tabName, btnEl) {
+    document.querySelectorAll('.nav-tabs-adminator .nav-link').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content .tab-pane').forEach(pane => {
+      pane.classList.remove('show', 'active');
+    });
+
+    if (btnEl) btnEl.classList.add('active');
+    const targetPane = document.getElementById(`pane-${tabName}`);
+    if (targetPane) targetPane.classList.add('show', 'active');
+  }
+
+  /* ==========================================================================
+     INICIO AUTOMÁTICO
+     ========================================================================== */
+  window.addEventListener('DOMContentLoaded', () => {
+    // Formatear fecha actual en navbar
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const today = new Date().toLocaleDateString('es-ES', options);
+    document.getElementById('currentDateDisplay').innerText = today.charAt(0).toUpperCase() + today.slice(1);
+
+    selectLocation(currentLat, currentLon, "Cerro El Plomo (5.424 m)");
+    renderRutasMontaña();
+    calculateMunter();
+    calculateMarchTime();
+  });
+</script>
+</body>
+</html>

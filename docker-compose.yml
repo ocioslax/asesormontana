@@ -12,6 +12,7 @@ services:
     volumes:
       - ./main.py:/app/main.py
       - ./index.html:/app/index.html
+      - ./planificador.html:/app/planificador.html
       - ./.env:/app/.env
     restart: unless-stopped
     healthcheck:

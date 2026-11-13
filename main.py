@@ -44,14 +44,119 @@ app.add_middleware(
 )
 
 # System Prompt estricto definido en PASO 4
-SYSTEM_PROMPT = """Actúa como un especialista en seguridad en montaña y gestión del riesgo en alta montaña. Tu objetivo es analizar el estado de una zona o ruta de montaña específica que el usuario te consulte y entregar un informe estructurado de viabilidad y riesgo. El análisis lo debes hacer en consideración del diagnóstico del tiempo de las últimas dos semanas, y la proyección de la semana siguiente (datos provistos en el prompt).
+SYSTEM_PROMPT = """Actúa como un especialista en seguridad en montaña y gestión del riesgo en alta montaña. Tu objetivo es analizar el estado de una zona o ruta de montaña específica que el usuario te consulte y entregar un informe estructurado de viabilidad y riesgo. El análisis lo debes hacer en consideración del diagnóstico del tiempo de las últimas dos semanas, y la proyección de la ventana completa de la expedición solicitada (fechas y horarios de inicio, día y hora de ataque a cumbre, y fecha y hora de término provistos en el prompt).
 
 Estructura tu respuesta EXACTAMENTE en los siguientes 3 apartados:
-**1. Estado de la Nieve y Viabilidad del Ascenso:** Analiza la estabilidad, cohesión y estructura del manto nivoso (presencia de nieve fresca, placas de viento, capas débiles o terreno glaciar/hielo). Determina si el estado actual permite una progresión segura. Especifica el equipamiento técnico mínimo requerido (piolet, crampones, raquetas, equipo de autorrescate en grietas/avalanchas).
-**2. Nivel de Riesgo General:** Asigna un nivel de peligro de avalanchas según la escala EAWS (Nivel 1-Bajo a Nivel 5-Muy Fuerte) e identifica el problema nivológico principal. Evalúa factores meteorológicos críticos (viento blanco, ráfagas, visibilidad, térmica, UV). Define el riesgo residual operativo (Bajo, Moderado, Alto o Extremo).
-**3. Recomendación Final y Criterio 'Go / No Go':** Emite una recomendación categórica: [EXPEDICIÓN RECOMENDADA (Go)] / [RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA] / [NO RECOMENDADA / ABORTAR (No Go)]. Establece la ventana horaria óptima y la hora límite de retorno (turn-around time). Enumera los desencadenantes de aborto inmediato en terreno.
+**1. Estado de la Nieve y Viabilidad del Ascenso:** Analiza la estabilidad, cohesión y estructura del manto nivoso (presencia de nieve fresca, placas de viento, capas débiles o terreno glaciar/hielo) a lo largo de las fechas de la expedición y de manera específica durante el día y hora estimada de cumbre. Considera el ciclo diurno térmico (rehielo nocturno/matinal vs radiación solar y fusión de tarde). Determina si el estado actual y su evolución permiten una progresión segura. Especifica el equipamiento técnico mínimo requerido (piolet, crampones, raquetas, equipo de autorrescate en grietas/avalanchas).
+**2. Nivel de Riesgo General:** Asigna un nivel de peligro de avalanchas según la escala EAWS (Nivel 1-Bajo a Nivel 5-Muy Fuerte) e identifica el problema nivológico principal. Evalúa factores meteorológicos críticos en la cota de cumbre para la fecha y hora seleccionadas (sensación térmica por viento/wind chill, ráfagas, visibilidad, tormenta, UV). Define el riesgo residual operativo (Bajo, Moderado, Alto o Extremo).
+**3. Recomendación Final y Criterio 'Go / No Go':** Emite una recomendación categórica: [EXPEDICIÓN RECOMENDADA (Go)] / [RECOMENDADA CON CONDICIONANTES / RUTA ALTERNATIVA] / [NO RECOMENDADA / ABORTAR (No Go)]. Valida y califica explícitamente el cronograma operativo propuesto: hora de salida, fecha y hora de cumbre, y hora de retorno. Confirma si el horario en cumbre es seguro o si debe ajustarse (hora límite estricta de cumbre y turn-around time para evitar la pérdida de rehielo, caída de piedras o la noche en el descenso). Enumera los desencadenantes de aborto inmediato en terreno.
 
 *Nota: Si el usuario no especifica la ruta precisa o el nivel técnico del grupo, indica en el informe la necesidad de estos datos para una evaluación definitiva.*"""
+
+def normalize_expedition_schedule(
+    start_date_str: Optional[str],
+    start_time_str: Optional[str],
+    summit_date_str: Optional[str],
+    summit_time_str: Optional[str],
+    end_date_str: Optional[str],
+    end_time_str: Optional[str],
+    target_date_str: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Normaliza y valida cronológicamente el itinerario de la expedición:
+      1. Fecha y hora de inicio (partida).
+      2. Fecha y hora de ataque a cumbre (hito crítico).
+      3. Fecha y hora de término (retorno).
+    Calcula duración total en días y horas.
+    """
+    consultation_date = date.today()
+
+    def clean_time(t_raw: Optional[str], default_h: int, default_m: int):
+        if not t_raw:
+            return f"{default_h:02d}:{default_m:02d}", default_h, default_m
+        try:
+            parts = str(t_raw).strip().split(":")
+            h = int(parts[0]) if len(parts) > 0 and parts[0].isdigit() else default_h
+            m = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_m
+            h = max(0, min(23, h))
+            m = max(0, min(59, m))
+            return f"{h:02d}:{m:02d}", h, m
+        except Exception:
+            return f"{default_h:02d}:{default_m:02d}", default_h, default_m
+
+    # 1. Inicio
+    s_date = (start_date_str or target_date_str or (consultation_date + timedelta(days=1)).isoformat()).strip()
+    try:
+        s_d = datetime.strptime(s_date, "%Y-%m-%d").date()
+    except Exception:
+        s_d = consultation_date + timedelta(days=1)
+        s_date = s_d.isoformat()
+
+    s_time_clean, s_h, s_m = clean_time(start_time_str, 5, 0)
+    s_dt = datetime(s_d.year, s_d.month, s_d.day, s_h, s_m)
+
+    # 2. Término
+    e_date = (end_date_str or (s_d + timedelta(days=2)).isoformat()).strip()
+    try:
+        e_d = datetime.strptime(e_date, "%Y-%m-%d").date()
+    except Exception:
+        e_d = s_d + timedelta(days=2)
+        e_date = e_d.isoformat()
+
+    e_time_clean, e_h, e_m = clean_time(end_time_str, 16, 0)
+    e_dt = datetime(e_d.year, e_d.month, e_d.day, e_h, e_m)
+
+    if e_dt <= s_dt:
+        if e_d < s_d:
+            e_d = s_d
+            e_date = s_d.isoformat()
+            e_dt = s_dt + timedelta(hours=8)
+            e_time_clean = f"{e_dt.hour:02d}:{e_dt.minute:02d}"
+        else:
+            e_dt = s_dt + timedelta(hours=6)
+            e_time_clean = f"{e_dt.hour:02d}:{e_dt.minute:02d}"
+
+    # 3. Cumbre (por defecto: si es 1 día, mismo día a las 10:00; si es más días, día de cumbre o penúltimo día)
+    summit_time_clean, sum_h, sum_m = clean_time(summit_time_str, 10, 0)
+    if summit_date_str and summit_date_str.strip():
+        try:
+            sum_d = datetime.strptime(summit_date_str.strip(), "%Y-%m-%d").date()
+        except Exception:
+            sum_d = s_d if (e_d - s_d).days <= 1 else (e_d - timedelta(days=1))
+    else:
+        sum_d = s_d if (e_d - s_d).days <= 1 else (e_d - timedelta(days=1))
+
+    sum_dt = datetime(sum_d.year, sum_d.month, sum_d.day, sum_h, sum_m)
+
+    # Garantizar s_dt <= sum_dt <= e_dt
+    if sum_dt < s_dt:
+        sum_dt = s_dt + timedelta(hours=4)
+        sum_d = sum_dt.date()
+        summit_time_clean = f"{sum_dt.hour:02d}:{sum_dt.minute:02d}"
+    elif sum_dt > e_dt:
+        sum_dt = max(s_dt, e_dt - timedelta(hours=3))
+        sum_d = sum_dt.date()
+        summit_time_clean = f"{sum_dt.hour:02d}:{sum_dt.minute:02d}"
+
+    summit_date_clean = sum_d.isoformat()
+    duration_hours = round((e_dt - s_dt).total_seconds() / 3600.0, 1)
+    duration_days = max(1, (e_d - s_d).days + 1)
+    hours_to_summit = round((sum_dt - s_dt).total_seconds() / 3600.0, 1)
+
+    return {
+        "start_date": s_date,
+        "start_time": s_time_clean,
+        "summit_date": summit_date_clean,
+        "summit_time": summit_time_clean,
+        "end_date": e_date,
+        "end_time": e_time_clean,
+        "start_dt": s_dt,
+        "summit_dt": sum_dt,
+        "end_dt": e_dt,
+        "duration_days": duration_days,
+        "duration_hours": duration_hours,
+        "hours_to_summit": hours_to_summit
+    }
 
 # Modelos Pydantic para validación de datos
 class ExpeditionRequest(BaseModel):
@@ -59,16 +164,31 @@ class ExpeditionRequest(BaseModel):
     latitude: float = Field(..., ge=-90.0, le=90.0, description="Latitud en grados decimales", example=-33.2319)
     longitude: float = Field(..., ge=-180.0, le=180.0, description="Longitud en grados decimales", example=-70.2172)
     altitude: float = Field(..., ge=0.0, le=9000.0, description="Altitud en m.s.n.m.", example=5424.0)
-    target_date: str = Field(..., description="Fecha objetivo del ascenso (YYYY-MM-DD)", example="2026-11-15")
+    start_date: Optional[str] = Field(default=None, description="Fecha de inicio de la expedición (YYYY-MM-DD)", example="2026-11-15")
+    start_time: Optional[str] = Field(default="05:00", description="Hora estimada de inicio/partida (HH:MM)", example="04:30")
+    summit_date: Optional[str] = Field(default=None, description="Fecha estimada de ataque a cumbre (YYYY-MM-DD)", example="2026-11-17")
+    summit_time: Optional[str] = Field(default="10:00", description="Hora estimada en cumbre (HH:MM)", example="10:00")
+    end_date: Optional[str] = Field(default=None, description="Fecha de término de la expedición (YYYY-MM-DD)", example="2026-11-18")
+    end_time: Optional[str] = Field(default="16:00", description="Hora estimada de retorno o término (HH:MM)", example="15:00")
+    target_date: Optional[str] = Field(default=None, description="Fecha objetivo del ascenso (retrocompatibilidad)", example="2026-11-15")
     route: Optional[str] = Field(default="", description="Ruta prevista (opcional)", example="Ruta Normal por La Hoya")
     group_technical_level: Optional[str] = Field(default="", description="Nivel técnico de la cordada (opcional)", example="Intermedio con experiencia en cramponaje")
 
 class WeatherSummary(BaseModel):
     source: str
     consultation_date: str
+    start_date: Optional[str] = None
+    start_time: Optional[str] = None
+    summit_date: Optional[str] = None
+    summit_time: Optional[str] = None
+    end_date: Optional[str] = None
+    end_time: Optional[str] = None
     target_date: str
+    expedition_duration_days: Optional[int] = None
+    expedition_duration_hours: Optional[float] = None
     zona_consultada: Optional[Dict[str, Any]] = None
     sumas_y_metricas_zona: Optional[Dict[str, Any]] = None
+    ventana_expedicion: Optional[Dict[str, Any]] = None
     past_14_days: Dict[str, Any]
     forecast_until_target: Dict[str, Any]
     forecast_7_days: Optional[Dict[str, Any]] = None  # Retrocompatibilidad
@@ -78,7 +198,15 @@ class ViabilityResponse(BaseModel):
     success: bool
     mountain_name: str
     consultation_date: Optional[str] = None
+    start_date: Optional[str] = None
+    start_time: Optional[str] = None
+    summit_date: Optional[str] = None
+    summit_time: Optional[str] = None
+    end_date: Optional[str] = None
+    end_time: Optional[str] = None
     target_date: str
+    expedition_duration_days: Optional[int] = None
+    expedition_duration_hours: Optional[float] = None
     altitude: float
     coordinates: Dict[str, float]
     weather_context: Dict[str, Any]
@@ -92,7 +220,12 @@ def generate_fallback_weather(
     latitude: float,
     longitude: float,
     altitude: float,
-    target_date_str: str,
+    start_date_str: str,
+    end_date_str: str,
+    start_time_str: str = "05:00",
+    end_time_str: str = "16:00",
+    summit_date_str: Optional[str] = None,
+    summit_time_str: str = "10:00",
     mountain_name: str = "",
     route: str = ""
 ) -> Dict[str, Any]:
@@ -100,15 +233,25 @@ def generate_fallback_weather(
     Genera un conjunto de datos meteorológicos sintéticos realistas basado en altitud
     en caso de que Open-Meteo no esté disponible o no haya conectividad externa.
     Cubre:
-      1. Datos de la zona consultada y métricas agregadas/sumas.
+      1. Cronograma completo: Inicio, Cumbre y Término con fechas y horas.
       2. Dos semanas previas a la fecha de consulta.
-      3. Pronóstico del tiempo hasta la fecha solicitada.
+      3. Pronóstico del tiempo hasta la fecha de término solicitada.
     """
     consultation_date = date.today()
-    try:
-        target_d = datetime.strptime(target_date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        target_d = consultation_date + timedelta(days=7)
+    sched = normalize_expedition_schedule(
+        start_date_str=start_date_str,
+        start_time_str=start_time_str,
+        summit_date_str=summit_date_str,
+        summit_time_str=summit_time_str,
+        end_date_str=end_date_str,
+        end_time_str=end_time_str
+    )
+
+    start_d = datetime.strptime(sched["start_date"], "%Y-%m-%d").date()
+    end_d = datetime.strptime(sched["end_date"], "%Y-%m-%d").date()
+    summit_d = datetime.strptime(sched["summit_date"], "%Y-%m-%d").date()
+    expedition_duration_days = sched["duration_days"]
+    expedition_duration_hours = sched["duration_hours"]
 
     # Gradiente térmico aproximado: -6.5°C por cada 1000m
     base_temp = 18.0 - (altitude / 1000.0 * 6.5)
@@ -133,8 +276,8 @@ def generate_fallback_weather(
         "dominant_conditions": "Ciclo de nevadas intermitentes con vientos moderados a fuertes en cotas altas."
     }
 
-    # 2. Pronóstico del tiempo hasta la fecha solicitada (inclusivo)
-    delta_days = (target_d - consultation_date).days
+    # 2. Pronóstico del tiempo hasta el término de la expedición (inclusivo)
+    delta_days = (end_d - consultation_date).days
     num_forecast_days = max(1, delta_days + 1)
     future_dates = [(consultation_date + timedelta(days=i)).isoformat() for i in range(0, num_forecast_days)]
 
@@ -145,7 +288,7 @@ def generate_fallback_weather(
     fut_wind = [round(28.0 + ((i * 7) % 55), 1) for i in range(len(future_dates))]
 
     forecast_until_target = {
-        "description": f"Pronóstico del tiempo desde la fecha de consulta ({consultation_date}) hasta la fecha solicitada ({target_date_str})",
+        "description": f"Pronóstico del tiempo desde la fecha de consulta ({consultation_date}) hasta el término de la expedición ({sched['end_date']})",
         "date_range": f"{future_dates[0]} al {future_dates[-1]}",
         "total_days": len(future_dates),
         "dates": future_dates,
@@ -155,7 +298,94 @@ def generate_fallback_weather(
         "precipitation_sum_mm": fut_precip,
         "snowfall_sum_cm": fut_snow,
         "wind_gusts_max_kmh": fut_wind,
-        "trend": f"Evolución proyectada de temperaturas, manto nival y ráfagas hasta la fecha solicitada ({target_date_str})."
+        "trend": f"Evolución proyectada para el cronograma: Partida {sched['start_date']} ({sched['start_time']}) ➔ Cumbre {sched['summit_date']} ({sched['summit_time']}) ➔ Retorno {sched['end_date']} ({sched['end_time']})."
+    }
+
+    # 3. Ventana específica de la expedición y desglose diario
+    expedition_dates = []
+    expedition_tmax = []
+    expedition_tmin = []
+    expedition_snow = []
+    expedition_precip = []
+    expedition_wind = []
+    expedition_daily_breakdown = []
+
+    for idx, d_str in enumerate(future_dates):
+        d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+        if start_d <= d_obj <= end_d:
+            expedition_dates.append(d_str)
+            tmax = fut_tmax[idx]
+            tmin = fut_tmin[idx]
+            sn = fut_snow[idx]
+            pr = fut_precip[idx]
+            w = fut_wind[idx]
+            expedition_tmax.append(tmax)
+            expedition_tmin.append(tmin)
+            expedition_snow.append(sn)
+            expedition_precip.append(pr)
+            expedition_wind.append(w)
+            day_num = len(expedition_dates)
+
+            if d_str == sched["summit_date"]:
+                role_hint = f"🎯 ATAQUE A CUMBRE (Hora estimada en cumbre: {sched['summit_time']} hrs)"
+            elif day_num == 1:
+                role_hint = f"Aproximación / Partida ({sched['start_time']} hrs)"
+            elif day_num == expedition_duration_days:
+                role_hint = f"Descenso final / Retorno ({sched['end_time']} hrs)"
+            else:
+                role_hint = "Tránsito / Campamento de altura"
+
+            expedition_daily_breakdown.append({
+                "dia_numero": day_num,
+                "etapa_sugerida": role_hint,
+                "es_dia_cumbre": (d_str == sched["summit_date"]),
+                "fecha": d_str,
+                "temp_max_c": tmax,
+                "temp_min_c": tmin,
+                "nieve_estimada_cm": sn,
+                "precipitacion_estimada_mm": pr,
+                "rafagas_max_kmh": w
+            })
+
+    if not expedition_daily_breakdown:
+        expedition_daily_breakdown.append({
+            "dia_numero": 1,
+            "etapa_sugerida": f"Ataque a cumbre y retorno ({sched['start_time']} a {sched['end_time']} hrs)",
+            "es_dia_cumbre": True,
+            "fecha": sched["start_date"],
+            "temp_max_c": round(base_temp, 1),
+            "temp_min_c": round(base_temp - 8.0, 1),
+            "nieve_estimada_cm": 0.0,
+            "precipitacion_estimada_mm": 0.0,
+            "rafagas_max_kmh": 40.0
+        })
+        expedition_dates = [sched["start_date"]]
+        expedition_snow = [0.0]
+        expedition_precip = [0.0]
+        expedition_tmin = [round(base_temp - 8.0, 1)]
+        expedition_tmax = [round(base_temp, 1)]
+        expedition_wind = [40.0]
+
+    ventana_expedicion = {
+        "fecha_inicio": sched["start_date"],
+        "hora_inicio": sched["start_time"],
+        "fecha_cumbre": sched["summit_date"],
+        "hora_cumbre": sched["summit_time"],
+        "fecha_termino": sched["end_date"],
+        "hora_termino": sched["end_time"],
+        "duracion_dias": expedition_duration_days,
+        "duracion_horas": expedition_duration_hours,
+        "horas_hasta_cumbre": sched["hours_to_summit"],
+        "cronograma_resumen": f"Partida: {sched['start_date']} ({sched['start_time']}) ➔ Cumbre: {sched['summit_date']} ({sched['summit_time']}) ➔ Retorno: {sched['end_date']} ({sched['end_time']})",
+        "fechas_comprendidas": expedition_dates,
+        "desglose_diario": expedition_daily_breakdown,
+        "metricas_clave": {
+            "nieve_acumulada_durante_expedicion_cm": round(sum(expedition_snow), 1),
+            "precipitacion_acumulada_durante_expedicion_mm": round(sum(expedition_precip), 1),
+            "temperatura_minima_extrema_c": min(expedition_tmin),
+            "temperatura_maxima_extrema_c": max(expedition_tmax),
+            "rafaga_viento_maxima_esperada_kmh": max(expedition_wind)
+        }
     }
 
     # Datos de la zona consultada y sumas/acumulados
@@ -167,7 +397,14 @@ def generate_fallback_weather(
         },
         "altitud_solicitada_msnm": altitude,
         "fecha_consulta": consultation_date.isoformat(),
-        "fecha_objetivo_expedicion": target_date_str,
+        "fecha_inicio_expedicion": sched["start_date"],
+        "hora_inicio_expedicion": sched["start_time"],
+        "fecha_cumbre_expedicion": sched["summit_date"],
+        "hora_cumbre_expedicion": sched["summit_time"],
+        "fecha_termino_expedicion": sched["end_date"],
+        "hora_termino_expedicion": sched["end_time"],
+        "duracion_expedicion_dias": expedition_duration_days,
+        "duracion_expedicion_horas": expedition_duration_hours,
         "ruta_prevista": route if route else "No especificada",
         "grid_meteorologico": {
             "latitud_grid": latitude,
@@ -180,29 +417,45 @@ def generate_fallback_weather(
     sumas_y_metricas_zona = {
         "nieve_acumulada_14d_previos_cm": round(sum(past_snow), 1),
         "precipitacion_acumulada_14d_previos_mm": round(sum(past_precip), 1),
+        "nieve_acumulada_ventana_expedicion_cm": round(sum(expedition_snow), 1),
+        "precipitacion_acumulada_ventana_expedicion_mm": round(sum(expedition_precip), 1),
         "nieve_proyectada_hasta_objetivo_cm": round(sum(fut_snow), 1),
         "precipitacion_proyectada_hasta_objetivo_mm": round(sum(fut_precip), 1),
         "nieve_total_periodo_analizado_cm": round(sum(past_snow + fut_snow), 1),
         "precipitacion_total_periodo_analizado_mm": round(sum(past_precip + fut_precip), 1),
         "temperatura_minima_extrema_c": min(past_tmin + fut_tmin),
         "temperatura_maxima_extrema_c": max(past_tmax + fut_tmax),
-        "rafaga_viento_maxima_esperada_kmh": max(past_wind + fut_wind)
+        "rafaga_viento_maxima_esperada_kmh": max(past_wind + fut_wind),
+        "rafaga_maxima_durante_expedicion_kmh": max(expedition_wind)
     }
 
     return {
         "source": "Sintético Calibrado por Altitud (Fallback Offline)",
         "consultation_date": consultation_date.isoformat(),
-        "target_date": target_date_str,
+        "start_date": sched["start_date"],
+        "start_time": sched["start_time"],
+        "summit_date": sched["summit_date"],
+        "summit_time": sched["summit_time"],
+        "end_date": sched["end_date"],
+        "end_time": sched["end_time"],
+        "target_date": sched["summit_date"],
+        "expedition_duration_days": expedition_duration_days,
+        "expedition_duration_hours": expedition_duration_hours,
         "elevation_m": altitude,
         "zona_consultada": zona_consultada,
         "sumas_y_metricas_zona": sumas_y_metricas_zona,
+        "ventana_expedicion": ventana_expedicion,
         "past_14_days": past_14,
         "forecast_until_target": forecast_until_target,
         "forecast_7_days": forecast_until_target,  # Compatibilidad
         "target_day_overview": {
-            "target_date": target_date_str,
+            "summit_date": sched["summit_date"],
+            "summit_time": sched["summit_time"],
+            "start_date": sched["start_date"],
+            "end_date": sched["end_date"],
+            "target_date": sched["summit_date"],
             "estimated_summit_temp_c": round(base_temp - 3.0, 1),
-            "estimated_wind_speed_kmh": 45.0,
+            "estimated_wind_speed_kmh": max(expedition_wind),
             "freeze_level_m": max(1500.0, round(altitude - 1200.0))
         }
     }
@@ -211,24 +464,40 @@ async def fetch_openmeteo_weather(
     latitude: float,
     longitude: float,
     altitude: float,
-    target_date_str: str,
+    start_date_str: str,
+    end_date_str: str,
+    start_time_str: str = "05:00",
+    end_time_str: str = "16:00",
+    summit_date_str: Optional[str] = None,
+    summit_time_str: str = "10:00",
     mountain_name: str = "",
     route: str = ""
 ) -> Dict[str, Any]:
     """
     Consulta la API de Open-Meteo para obtener:
-      1. Datos de la zona consultada y métricas agregadas/sumas.
+      1. Cronograma completo: Inicio, Ataque a Cumbre y Término con fechas y horas.
       2. Clima de dos semanas previas a la fecha de consulta (past_days=14).
-      3. Pronóstico del tiempo hasta la fecha objetivo solicitada.
+      3. Pronóstico del tiempo cubriendo todo el rango de la expedición.
+      4. Aislamiento y desglose diario con foco en la jornada y hora de cumbre.
     """
     consultation_date = date.today()
-    try:
-        target_d = datetime.strptime(target_date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        target_d = consultation_date + timedelta(days=7)
+    sched = normalize_expedition_schedule(
+        start_date_str=start_date_str,
+        start_time_str=start_time_str,
+        summit_date_str=summit_date_str,
+        summit_time_str=summit_time_str,
+        end_date_str=end_date_str,
+        end_time_str=end_time_str
+    )
 
-    delta_days = (target_d - consultation_date).days
-    # Días requeridos desde hoy hasta la fecha objetivo (inclusive)
+    start_d = datetime.strptime(sched["start_date"], "%Y-%m-%d").date()
+    end_d = datetime.strptime(sched["end_date"], "%Y-%m-%d").date()
+    summit_d = datetime.strptime(sched["summit_date"], "%Y-%m-%d").date()
+    expedition_duration_days = sched["duration_days"]
+    expedition_duration_hours = sched["duration_hours"]
+
+    delta_days = (end_d - consultation_date).days
+    # Días requeridos desde hoy hasta la fecha de término (inclusive)
     requested_forecast_days = max(1, delta_days + 1)
     # Límite máximo de pronóstico de Open-Meteo estándar es 16 días
     api_forecast_days = min(requested_forecast_days, 16)
@@ -287,11 +556,11 @@ async def fetch_openmeteo_weather(
                     "wind_gusts_max_kmh": past_wind,
                 }
 
-                # Si la fecha solicitada excede el límite directo de 16 días de Open-Meteo,
-                # se proyectan tendencialmente los días restantes hasta la fecha objetivo
+                # Si la fecha de término excede el límite directo de 16 días de Open-Meteo,
+                # se proyectan tendencialmente los días restantes hasta la fecha de término
                 if requested_forecast_days > len(future_dates) and future_dates:
                     last_date_obj = datetime.strptime(future_dates[-1], "%Y-%m-%d").date()
-                    extra_days = (target_d - last_date_obj).days
+                    extra_days = (end_d - last_date_obj).days
                     for i in range(1, extra_days + 1):
                         ext_date = (last_date_obj + timedelta(days=i)).isoformat()
                         future_dates.append(ext_date)
@@ -308,8 +577,8 @@ async def fetch_openmeteo_weather(
                 fut_wind = wind_gusts[idx_today:idx_today + len(future_dates)]
 
                 forecast_until_target = {
-                    "description": f"Pronóstico del tiempo desde la fecha de consulta ({consultation_date}) hasta la fecha solicitada ({target_date_str})",
-                    "date_range": f"{future_dates[0]} al {future_dates[-1]}" if future_dates else f"Hasta {target_date_str}",
+                    "description": f"Pronóstico del tiempo desde la fecha de consulta ({consultation_date}) hasta el término de la expedición ({sched['end_date']})",
+                    "date_range": f"{future_dates[0]} al {future_dates[-1]}" if future_dates else f"Hasta {sched['end_date']}",
                     "total_days": len(future_dates),
                     "dates": future_dates,
                     "temp_max_c": fut_tmax,
@@ -317,6 +586,93 @@ async def fetch_openmeteo_weather(
                     "precipitation_sum_mm": fut_precip,
                     "snowfall_sum_cm": fut_snow,
                     "wind_gusts_max_kmh": fut_wind,
+                }
+
+                # Aislamiento y análisis diario específico de la ventana de expedición
+                expedition_dates = []
+                expedition_tmax = []
+                expedition_tmin = []
+                expedition_snow = []
+                expedition_precip = []
+                expedition_wind = []
+                expedition_daily_breakdown = []
+
+                for idx, d_str in enumerate(future_dates):
+                    d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+                    if start_d <= d_obj <= end_d:
+                        expedition_dates.append(d_str)
+                        tmax = fut_tmax[idx]
+                        tmin = fut_tmin[idx]
+                        sn = fut_snow[idx]
+                        pr = fut_precip[idx]
+                        w = fut_wind[idx]
+                        expedition_tmax.append(tmax)
+                        expedition_tmin.append(tmin)
+                        expedition_snow.append(sn)
+                        expedition_precip.append(pr)
+                        expedition_wind.append(w)
+                        day_num = len(expedition_dates)
+
+                        if d_str == sched["summit_date"]:
+                            role_hint = f"🎯 ATAQUE A CUMBRE (Hora estimada en cumbre: {sched['summit_time']} hrs)"
+                        elif day_num == 1:
+                            role_hint = f"Aproximación / Partida ({sched['start_time']} hrs)"
+                        elif day_num == expedition_duration_days:
+                            role_hint = f"Descenso final / Retorno ({sched['end_time']} hrs)"
+                        else:
+                            role_hint = "Tránsito / Altura"
+
+                        expedition_daily_breakdown.append({
+                            "dia_numero": day_num,
+                            "etapa_sugerida": role_hint,
+                            "es_dia_cumbre": (d_str == sched["summit_date"]),
+                            "fecha": d_str,
+                            "temp_max_c": tmax,
+                            "temp_min_c": tmin,
+                            "nieve_estimada_cm": sn,
+                            "precipitacion_estimada_mm": pr,
+                            "rafagas_max_kmh": w
+                        })
+
+                if not expedition_daily_breakdown:
+                    expedition_daily_breakdown.append({
+                        "dia_numero": 1,
+                        "etapa_sugerida": f"Ataque a cumbre y retorno ({sched['start_time']} - {sched['end_time']} hrs)",
+                        "es_dia_cumbre": True,
+                        "fecha": sched["start_date"],
+                        "temp_max_c": fut_tmax[0] if fut_tmax else 0.0,
+                        "temp_min_c": fut_tmin[0] if fut_tmin else -5.0,
+                        "nieve_estimada_cm": 0.0,
+                        "precipitacion_estimada_mm": 0.0,
+                        "rafagas_max_kmh": fut_wind[0] if fut_wind else 30.0
+                    })
+                    expedition_dates = [sched["start_date"]]
+                    expedition_snow = [0.0]
+                    expedition_precip = [0.0]
+                    expedition_tmin = [fut_tmin[0] if fut_tmin else -5.0]
+                    expedition_tmax = [fut_tmax[0] if fut_tmax else 0.0]
+                    expedition_wind = [fut_wind[0] if fut_wind else 30.0]
+
+                ventana_expedicion = {
+                    "fecha_inicio": sched["start_date"],
+                    "hora_inicio": sched["start_time"],
+                    "fecha_cumbre": sched["summit_date"],
+                    "hora_cumbre": sched["summit_time"],
+                    "fecha_termino": sched["end_date"],
+                    "hora_termino": sched["end_time"],
+                    "duracion_dias": expedition_duration_days,
+                    "duracion_horas": expedition_duration_hours,
+                    "horas_hasta_cumbre": sched["hours_to_summit"],
+                    "cronograma_resumen": f"Partida: {sched['start_date']} ({sched['start_time']}) ➔ Cumbre: {sched['summit_date']} ({sched['summit_time']}) ➔ Retorno: {sched['end_date']} ({sched['end_time']})",
+                    "fechas_comprendidas": expedition_dates,
+                    "desglose_diario": expedition_daily_breakdown,
+                    "metricas_clave": {
+                        "nieve_acumulada_durante_expedicion_cm": round(sum(expedition_snow), 1),
+                        "precipitacion_acumulada_durante_expedicion_mm": round(sum(expedition_precip), 1),
+                        "temperatura_minima_extrema_c": min(expedition_tmin) if expedition_tmin else None,
+                        "temperatura_maxima_extrema_c": max(expedition_tmax) if expedition_tmax else None,
+                        "rafaga_viento_maxima_esperada_kmh": max(expedition_wind) if expedition_wind else None
+                    }
                 }
 
                 # Datos de la zona consultada
@@ -328,7 +684,14 @@ async def fetch_openmeteo_weather(
                     },
                     "altitud_solicitada_msnm": altitude,
                     "fecha_consulta": consultation_date.isoformat(),
-                    "fecha_objetivo_expedicion": target_date_str,
+                    "fecha_inicio_expedicion": sched["start_date"],
+                    "hora_inicio_expedicion": sched["start_time"],
+                    "fecha_cumbre_expedicion": sched["summit_date"],
+                    "hora_cumbre_expedicion": sched["summit_time"],
+                    "fecha_termino_expedicion": sched["end_date"],
+                    "hora_termino_expedicion": sched["end_time"],
+                    "duracion_expedicion_dias": expedition_duration_days,
+                    "duracion_expedicion_horas": expedition_duration_hours,
                     "ruta_prevista": route if route else "No especificada",
                     "grid_openmeteo": {
                         "latitud_grid": data.get("latitude", latitude),
@@ -348,40 +711,80 @@ async def fetch_openmeteo_weather(
                 sumas_y_metricas_zona = {
                     "nieve_acumulada_14d_previos_cm": round(sum(past_snow), 1),
                     "precipitacion_acumulada_14d_previos_mm": round(sum(past_precip), 1),
+                    "nieve_acumulada_ventana_expedicion_cm": round(sum(expedition_snow), 1),
+                    "precipitacion_acumulada_ventana_expedicion_mm": round(sum(expedition_precip), 1),
                     "nieve_proyectada_hasta_objetivo_cm": round(sum(fut_snow), 1),
                     "precipitacion_proyectada_hasta_objetivo_mm": round(sum(fut_precip), 1),
                     "nieve_total_periodo_analizado_cm": round(sum(past_snow + fut_snow), 1),
                     "precipitacion_total_periodo_analizado_mm": round(sum(past_precip + fut_precip), 1),
                     "temperatura_minima_extrema_c": min(all_tmin) if all_tmin else None,
                     "temperatura_maxima_extrema_c": max(all_tmax) if all_tmax else None,
-                    "rafaga_viento_maxima_esperada_kmh": max(all_wind) if all_wind else None
+                    "rafaga_viento_maxima_esperada_kmh": max(all_wind) if all_wind else None,
+                    "rafaga_maxima_durante_expedicion_kmh": max(expedition_wind) if expedition_wind else (max(all_wind) if all_wind else None)
                 }
                 
                 logger.info(
                     f"Datos meteorológicos obtenidos de Open-Meteo para {zona_consultada['nombre_referencia']}: "
-                    f"Historial ({past_14['date_range']}) | Pronóstico ({forecast_until_target['date_range']})"
+                    f"Historial ({past_14['date_range']}) | Cronograma (Partida {sched['start_date']} {sched['start_time']} ➔ Cumbre {sched['summit_date']} {sched['summit_time']} ➔ Retorno {sched['end_date']} {sched['end_time']})"
                 )
                 return {
                     "source": "Open-Meteo Live API",
                     "consultation_date": consultation_date.isoformat(),
-                    "target_date": target_date_str,
+                    "start_date": sched["start_date"],
+                    "start_time": sched["start_time"],
+                    "summit_date": sched["summit_date"],
+                    "summit_time": sched["summit_time"],
+                    "end_date": sched["end_date"],
+                    "end_time": sched["end_time"],
+                    "target_date": sched["summit_date"],
+                    "expedition_duration_days": expedition_duration_days,
+                    "expedition_duration_hours": expedition_duration_hours,
                     "elevation_m": data.get("elevation", altitude),
                     "zona_consultada": zona_consultada,
                     "sumas_y_metricas_zona": sumas_y_metricas_zona,
+                    "ventana_expedicion": ventana_expedicion,
                     "past_14_days": past_14,
                     "forecast_until_target": forecast_until_target,
                     "forecast_7_days": forecast_until_target,  # Compatibilidad
                     "target_day_overview": {
-                        "target_date": target_date_str,
+                        "summit_date": sched["summit_date"],
+                        "summit_time": sched["summit_time"],
+                        "start_date": sched["start_date"],
+                        "end_date": sched["end_date"],
+                        "target_date": sched["summit_date"],
                         "elevation_used": data.get("elevation", altitude)
                     }
                 }
             else:
                 logger.warning(f"Open-Meteo devolvió código {response.status_code}. Usando fallback sintético.")
-                return generate_fallback_weather(latitude, longitude, altitude, target_date_str, mountain_name, route)
+                return generate_fallback_weather(
+                    latitude=latitude,
+                    longitude=longitude,
+                    altitude=altitude,
+                    start_date_str=start_date_str,
+                    end_date_str=end_date_str,
+                    start_time_str=start_time_str,
+                    end_time_str=end_time_str,
+                    summit_date_str=summit_date_str,
+                    summit_time_str=summit_time_str,
+                    mountain_name=mountain_name,
+                    route=route
+                )
     except Exception as exc:
         logger.warning(f"No fue posible conectar con Open-Meteo ({exc}). Usando fallback sintético.")
-        return generate_fallback_weather(latitude, longitude, altitude, target_date_str, mountain_name, route)
+        return generate_fallback_weather(
+            latitude=latitude,
+            longitude=longitude,
+            altitude=altitude,
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
+            start_time_str=start_time_str,
+            end_time_str=end_time_str,
+            summit_date_str=summit_date_str,
+            summit_time_str=summit_time_str,
+            mountain_name=mountain_name,
+            route=route
+        )
 
 def call_gemini_pro(
     prompt: str,
@@ -492,9 +895,32 @@ def simulate_expert_response(
     """
     target_name = mountain_name or "Zona de montaña seleccionada"
     metrics = (weather_data or {}).get("sumas_y_metricas_zona", {})
+    ventana = (weather_data or {}).get("ventana_expedicion", {})
     snow_sum = metrics.get("nieve_total_periodo_analizado_cm", 25.0)
     wind_max = metrics.get("rafaga_viento_maxima_esperada_kmh", 55.0)
     t_min = metrics.get("temperatura_minima_extrema_c", -15.0)
+
+    start_date_str = ventana.get("fecha_inicio") or (weather_data or {}).get("start_date", "Inicio")
+    start_time_str = ventana.get("hora_inicio") or (weather_data or {}).get("start_time", "05:00")
+    summit_date_str = ventana.get("fecha_cumbre") or (weather_data or {}).get("summit_date", start_date_str)
+    summit_time_str = ventana.get("hora_cumbre") or (weather_data or {}).get("summit_time", "10:00")
+    end_date_str = ventana.get("fecha_termino") or (weather_data or {}).get("end_date", "Término")
+    end_time_str = ventana.get("hora_termino") or (weather_data or {}).get("end_time", "16:00")
+    duration_days = ventana.get("duracion_dias", 1)
+    duration_hours = ventana.get("duracion_horas", 24.0)
+    cronograma_resumen = ventana.get("cronograma_resumen") or f"Partida {start_date_str} ({start_time_str}) ➔ Cumbre {summit_date_str} ({summit_time_str}) ➔ Retorno {end_date_str} ({end_time_str})"
+
+    # Determinar si la hora de cumbre es tardía (> 12:30)
+    try:
+        sh_val = int(summit_time_str.split(":")[0])
+    except Exception:
+        sh_val = 10
+    summit_timing_warning = ""
+    if sh_val >= 13:
+        summit_timing_warning = (
+            f" ⚠️ Advertencia: El horario propuesto en cumbre ({summit_time_str} hrs) es tardío; "
+            f"se recomienda adelantar el ataque para alcanzar la cumbre antes de las 11:30 hrs y evitar nieve sopa o tormentas vespertinas."
+        )
 
     # Determinar veredicto y nivel EAWS basado en métricas reales de la zona
     if wind_max > 70.0 or snow_sum > 60.0 or altitude > 6000:
@@ -502,8 +928,9 @@ def simulate_expert_response(
         risk_level = "Nivel 4 (Fuerte)"
         op_risk = "Extremo"
         snow_state = (
-            f"En {target_name} ({altitude} m.s.n.m.), el manto nivoso presenta alta inestabilidad debido a acumulaciones "
-            f"recientes de {snow_sum} cm de nieve con severo transporte eólico. Se observan placas de viento reactivas en pendientes "
+            f"En {target_name} ({altitude} m.s.n.m.), el manto nivoso presenta alta inestabilidad durante el periodo de expedición "
+            f"({start_date_str} a {end_date_str}) y especialmente durante la jornada de cumbre ({summit_date_str} a las {summit_time_str} hrs), "
+            f"debido a acumulaciones recientes de {snow_sum} cm de nieve con severo transporte eólico. Se observan placas de viento reactivas en pendientes "
             f"superiores a 28° y riesgo inminente de desencadenamiento espontáneo en laderas de sotavento."
         )
     elif wind_max > 45.0 or snow_sum > 20.0 or altitude > 4000:
@@ -511,8 +938,8 @@ def simulate_expert_response(
         risk_level = "Nivel 3 (Marcado)"
         op_risk = "Alto"
         snow_state = (
-            f"Para {target_name} ({altitude} m.s.n.m.), el manto presenta cohesión variable con costras de rehielo matinales "
-            f"y presencia de placas de viento en aristas expuestas. Con {snow_sum} cm acumulados y ráfagas estimadas de {wind_max} km/h, "
+            f"Para {target_name} ({altitude} m.s.n.m.), durante el cronograma propuesto ({start_date_str} a {end_date_str}), el manto presenta cohesión variable con costras de rehielo matinales "
+            f"y presencia de placas de viento en aristas expuestas. Con {snow_sum} cm acumulados y ráfagas estimadas de {wind_max} km/h para el día de cumbre ({summit_date_str}), "
             f"la progresión solo es viable evitando canales cerrados y transitando estrictamente por laderas protegidas o aristas de roca firme."
         )
     else:
@@ -520,9 +947,9 @@ def simulate_expert_response(
         risk_level = "Nivel 2 (Limitado)"
         op_risk = "Moderado"
         snow_state = (
-            f"Las condiciones en {target_name} ({altitude} m.s.n.m.) muestran un manto nivoso en proceso de consolidación favorable. "
+            f"Las condiciones en {target_name} ({altitude} m.s.n.m.) durante la expedición ({start_date_str} a {end_date_str}) muestran un manto nivoso en proceso de consolidación favorable. "
             f"Con ráfagas contenidas ({wind_max} km/h) y temperaturas mínimas de {t_min}°C, el manto nivoso permite una progresión "
-            f"firme durante la ventana matinal aprovechando el buen rehielo nocturno."
+            f"firme durante la ventana matinal, alcanzando la cumbre en el horario planificado ({summit_date_str} {summit_time_str} hrs) aprovechando el buen rehielo nocturno."
         )
 
     equip = (
@@ -537,13 +964,14 @@ def simulate_expert_response(
         f"**2. Nivel de Riesgo General:**\n"
         f"Se asigna un **{risk_level}** según la escala europea EAWS. Problema nivológico predominante: "
         f"Placas de viento y capas débiles persistentes por gradiente térmico. Factores críticos: ráfagas de hasta {wind_max} km/h, "
-        f"sensación térmica extrema de {t_min - 8.0:.1f}°C y visibilidad reducida en cotas altas.\n"
+        f"sensación térmica extrema de {t_min - 8.0:.1f}°C y visibilidad reducida en cotas altas durante las fechas analizadas.\n"
         f"Riesgo residual operativo: **{op_risk}**.\n\n"
         f"**3. Recomendación Final y Criterio 'Go / No Go':**\n"
         f"**{verdict}**\n\n"
         f"- **Zona evaluada:** {target_name} ({altitude} m.s.n.m.)\n"
-        f"- **Ventana horaria óptima:** Salida recomendada a las 04:00 AM para aprovechar la máxima estabilidad de rehielo del manto.\n"
-        f"- **Hora límite de retorno (turn-around time):** 12:30 PM sin excepción.\n"
+        f"- **Cronograma operativo:** {cronograma_resumen} (Total: {duration_days} {'día' if duration_days == 1 else 'días'} / {duration_hours} hrs)\n"
+        f"- **Jornada y Horario de Cumbre Propuesto:** {summit_date_str} a las {summit_time_str} hrs.{summit_timing_warning}\n"
+        f"- **Ventana horaria y hora límite (turn-around time):** Salida a las {start_time_str} hrs. Hora límite de retorno de cumbre: 12:00 PM sin excepción.\n"
         f"- **Desencadenantes de aborto inmediato en terreno:** Ráfagas sostenidas sobre 60 km/h, desprendimientos o colapsos tipo 'whoomf', "
         f"pérdida de visibilidad por niebla/viento blanco o reblandecimiento acelerado de la nieve antes de mediodía.\n\n"
         f"*Nota: Si el usuario no especifica la ruta precisa o el nivel técnico de la cordada, se requiere validar de antemano "
@@ -634,6 +1062,18 @@ async def serve_index():
             return HTMLResponse(content=f.read())
     return HTMLResponse(
         content="<h1>Asesor de Seguridad en Alta Montaña</h1><p>Archivo index.html no encontrado.</p>",
+        status_code=404
+    )
+
+@app.get("/planificador", response_class=HTMLResponse)
+async def serve_planner():
+    """Sirve la herramienta especializada de Planificación de Ascenso y Gestión del Riesgo."""
+    planner_file = os.path.join(os.path.dirname(__file__), "planificador.html")
+    if os.path.exists(planner_file):
+        with open(planner_file, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(
+        content="<h1>Planificador de Ascenso</h1><p>Archivo planificador.html no encontrado.</p>",
         status_code=404
     )
 
@@ -738,21 +1178,51 @@ async def geocode_location(q: str):
 async def analyze_expedition(req: ExpeditionRequest):
     """
     Endpoint principal: recibe los datos de la montaña y expedición,
-    recopila el contexto meteorológico (últimas 2 semanas y próxima semana),
+    normaliza el cronograma (partida, cumbre y retorno con fechas y horas),
+    recopila el contexto meteorológico (últimas 2 semanas y ventana completa de expedición),
     y genera el informe de viabilidad técnica mediante Gemini Pro.
     """
     try:
         # Si el usuario no especificó nombre o usó el mapa, usar coordenadas como referencia
         display_name = req.mountain_name.strip() if (req.mountain_name and req.mountain_name.strip()) else f"Zona Coordenadas ({req.latitude:.4f}, {req.longitude:.4f})"
         
-        logger.info(f"Iniciando evaluación para: {display_name} (Alt: {req.altitude}m, Fecha: {req.target_date})")
+        # Normalizar cronograma completo (inicio, cumbre y retorno con fechas y horas)
+        sched = normalize_expedition_schedule(
+            start_date_str=req.start_date,
+            start_time_str=req.start_time,
+            summit_date_str=req.summit_date,
+            summit_time_str=req.summit_time,
+            end_date_str=req.end_date,
+            end_time_str=req.end_time,
+            target_date_str=req.target_date
+        )
+
+        start_date_str = sched["start_date"]
+        start_time_str = sched["start_time"]
+        summit_date_str = sched["summit_date"]
+        summit_time_str = sched["summit_time"]
+        end_date_str = sched["end_date"]
+        end_time_str = sched["end_time"]
+        expedition_days = sched["duration_days"]
+        expedition_hours = sched["duration_hours"]
+        
+        logger.info(
+            f"Iniciando evaluación para: {display_name} (Alt: {req.altitude}m | "
+            f"Cronograma: Partida {start_date_str} {start_time_str} ➔ Cumbre {summit_date_str} {summit_time_str} ➔ Retorno {end_date_str} {end_time_str} "
+            f"[{expedition_days} días / {expedition_hours} hrs])"
+        )
 
         # 1. Recopilación de datos meteorológicos (Open-Meteo con fallback automático)
         weather_data = await fetch_openmeteo_weather(
             latitude=req.latitude,
             longitude=req.longitude,
             altitude=req.altitude,
-            target_date_str=req.target_date,
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
+            start_time_str=start_time_str,
+            end_time_str=end_time_str,
+            summit_date_str=summit_date_str,
+            summit_time_str=summit_time_str,
             mountain_name=display_name,
             route=req.route or ""
         )
@@ -760,12 +1230,22 @@ async def analyze_expedition(req: ExpeditionRequest):
         # 2. Formulación del Prompt para Gemini
         past_info = weather_data.get('past_14_days', {})
         forecast_info = weather_data.get('forecast_until_target') or weather_data.get('forecast_7_days', {})
+        ventana_info = weather_data.get('ventana_expedicion', {})
         consultation_date_str = weather_data.get('consultation_date', str(date.today()))
 
         user_prompt = f"""EVALUACIÓN DE EXPEDICIÓN EN ALTA MONTAÑA
 
 PARÁMETROS DE LA EXPEDICIÓN Y ZONA CONSULTADA:
 {json.dumps(weather_data.get('zona_consultada', {}), indent=2, ensure_ascii=False)}
+
+CRONOGRAMA OPERATIVO PROPUESTO (DURACIÓN TOTAL: {expedition_days} DÍAS / {expedition_hours} HORAS):
+- Partida / Inicio: {start_date_str} a las {start_time_str} hrs
+- Ataque a Cumbre (Hito Crítico): {summit_date_str} a las {summit_time_str} hrs (Tiempo estimado hasta cumbre: {sched['hours_to_summit']} hrs)
+- Retorno al campamento base o término: {end_date_str} a las {end_time_str} hrs
+- Resumen: {ventana_info.get('cronograma_resumen', f'{start_date_str} a {end_date_str}')}
+
+VENTANA DE LA EXPEDICIÓN Y DESGLOSE DIARIO:
+{json.dumps(ventana_info, indent=2, ensure_ascii=False)}
 
 MÉTRICAS Y SUMAS ACUMULADAS DE LA ZONA:
 {json.dumps(weather_data.get('sumas_y_metricas_zona', {}), indent=2, ensure_ascii=False)}
@@ -776,8 +1256,14 @@ Fuente de datos: {weather_data.get('source')}
 1. Diagnóstico del clima de las dos semanas previas a la fecha de consulta ({past_info.get('date_range', '14 días previos')}):
 {json.dumps(past_info, indent=2, ensure_ascii=False)}
 
-2. Proyección meteorológica desde la fecha de consulta hasta la fecha objetivo solicitada ({forecast_info.get('date_range', f'hasta {req.target_date}')}):
+2. Proyección meteorológica desde la fecha de consulta hasta el término de la expedición ({forecast_info.get('date_range', f'hasta {end_date_str}')}):
 {json.dumps(forecast_info, indent=2, ensure_ascii=False)}
+
+INSTRUCCIONES CLAVE DE ANÁLISIS:
+1. Evalúa de forma prioritaria la jornada y horario de cumbre propuestos ({summit_date_str} a las {summit_time_str} hrs). Analiza si las condiciones de viento, temperatura, radiación solar y estabilidad nival a esa hora específica son viables o si se debe ajustar el horario de ataque.
+2. Analiza detalladamente la evolución del manto nivoso y el clima a lo largo de TODO el cronograma (días de aproximación, tránsito en altura, ataque a cumbre y descenso final).
+3. En la Sección 3, califica explícitamente el cronograma (hora de partida, horario en cumbre y hora de retorno) y valida la hora límite estricta de retorno (turn-around time) para evitar descensos peligrosos por nieve transformada o falta de luz.
+4. Entrega tu veredicto considerando si existe una ventana viable y segura para completar la expedición completa (ida, cumbre y regreso seguro).
 
 Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 3 apartados indicados en la instrucción del sistema."""
 
@@ -797,7 +1283,15 @@ Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 
             success=True,
             mountain_name=display_name,
             consultation_date=consultation_date_str,
-            target_date=req.target_date,
+            start_date=start_date_str,
+            start_time=start_time_str,
+            summit_date=summit_date_str,
+            summit_time=summit_time_str,
+            end_date=end_date_str,
+            end_time=end_time_str,
+            target_date=summit_date_str,
+            expedition_duration_days=expedition_days,
+            expedition_duration_hours=expedition_hours,
             altitude=req.altitude,
             coordinates={"latitude": req.latitude, "longitude": req.longitude},
             weather_context=weather_data,
@@ -815,8 +1309,15 @@ Por favor, elabora el informe técnico de seguridad siguiendo estrictamente los 
             detail=f"Error interno al procesar el análisis de montaña: {str(exc)}"
         )
 
+    except Exception as exc:
+        logger.error(f"Error inesperado procesando la expedición: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno al procesar el análisis de montaña: {str(exc)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
 

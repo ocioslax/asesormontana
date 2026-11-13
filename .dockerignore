@@ -1,0 +1,11 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+proyecto_mountain_advisor.zip
+.vscode
+.idea
+

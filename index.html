@@ -197,14 +197,65 @@
       color: #055160;
     }
 
+    .preset-pill.active {
+      background-color: #e7f1ff;
+      border-color: var(--adminator-primary);
+      color: var(--adminator-primary);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(13, 110, 253, 0.15);
+    }
+
     /* Map Styling */
-    #osmMap {
-      height: 270px;
-      width: 100%;
+    .map-wrapper {
+      position: relative;
       border-radius: 0.5rem;
+      overflow: hidden;
       border: 1px solid #ced4da;
+    }
+
+    #osmMap {
+      height: 350px;
+      width: 100%;
       z-index: 10;
       cursor: crosshair;
+    }
+
+    /* HUD Inferior del Mapa - Estilo Adminator */
+    .map-hud {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      z-index: 500;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      color: var(--adminator-text-main, #212529);
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--adminator-border, #ced4da);
+      font-size: 0.76rem;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .map-hud-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .map-hud-divider {
+      width: 1px;
+      height: 14px;
+      background-color: var(--adminator-border, #dee2e6);
+    }
+
+    .map-hud .val {
+      font-family: var(--font-mono, monospace);
+      font-weight: 700;
+      color: var(--adminator-primary, #0d6efd);
     }
 
     /* Verdict Alert Boxes */
@@ -331,13 +382,19 @@
   <aside class="sidebar">
     <a href="#" class="sidebar-brand">
       <i class="fa-solid fa-mountain-sun"></i>
-      <span>Alta Montaña IA</span>
+      <span>Experto IA</span>
     </a>
     <ul class="sidebar-menu">
       <li class="sidebar-item">
-        <a href="#dashboard" class="sidebar-link active">
+        <a href="/" class="sidebar-link active">
           <i class="fa-solid fa-gauge-high"></i>
           <span>Dashboard Viabilidad</span>
+        </a>
+      </li>
+      <li class="sidebar-item">
+        <a href="/planificador" class="sidebar-link">
+          <i class="fa-solid fa-map-location-dot text-warning"></i>
+          <span>Planificador de Ascenso</span>
         </a>
       </li>
       <li class="sidebar-item">
@@ -356,7 +413,7 @@
 
     <div class="sidebar-footer">
       <div><strong>Plataforma:</strong> Seguridad en Montaña</div>
-      <div><strong>Motor IA:</strong> Google Gemini Pro</div>
+      <div><strong>Asesor:</strong> Experto IA</div>
       <div><strong>Datos Clima:</strong> Open-Meteo API</div>
     </div>
   </aside>
@@ -391,11 +448,16 @@
           <div>
             <h4 class="fw-bold mb-1 text-dark">Motor de Decisión Experta "Go / No Go"</h4>
             <p class="text-muted small mb-0">
-              Correlación nivometeorológica de las <strong>2 semanas previas a la fecha de consulta</strong> y <strong>pronóstico hasta la fecha solicitada</strong> procesada por <strong>Gemini Pro</strong> según escala EAWS.
+              Correlación nivometeorológica de las <strong>2 semanas previas a la fecha de consulta</strong> y <strong>pronóstico hasta la fecha solicitada</strong> procesada por el <strong>Experto IA</strong> según escala EAWS.
             </p>
           </div>
-          <div>
-            <span class="badge bg-primary px-3 py-2"><i class="fa-solid fa-shield-halved me-1"></i> Protocolo de Seguridad UIAA / EAWS</span>
+          <div class="d-flex align-items-center gap-2">
+            <a href="/planificador" class="btn btn-primary btn-sm fw-semibold shadow-sm">
+              <i class="fa-solid fa-map-location-dot me-1"></i>Planificador de Ascenso
+            </a>
+            <span class="badge bg-secondary-subtle text-secondary border px-3 py-2 d-none d-sm-inline-flex align-items-center">
+              <i class="fa-solid fa-shield-halved me-1 text-primary"></i>Protocolo UIAA / EAWS
+            </span>
           </div>
         </div>
       </div>
@@ -409,38 +471,81 @@
               <span class="badge bg-light text-dark border">Geolocalización</span>
             </div>
             <div class="card-adminator-body">
-              <!-- Preset Mountains -->
+              <!-- Preset Mountains (Wikiloc) -->
               <div class="mb-3">
-                <label class="form-label text-muted small fw-semibold">Cumbres Pre-configuradas (Carga Rápida):</label>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label text-muted small fw-semibold mb-0">
+                    <i class="fa-solid fa-route text-success me-1"></i>Cumbres Pre-configuradas (Rutas Wikiloc):
+                  </label>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem;">
+                    <i class="fa-solid fa-check me-1"></i>Wikiloc GPS
+                  </span>
+                </div>
                 <div>
-                  <button type="button" class="preset-pill" onclick="loadPreset('Cerro El Plomo', -33.2319, -70.2172, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar')">
+                  <button type="button" class="preset-pill active" onclick="loadPreset('Cerro El Plomo', -33.2333, -70.2167, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar', this, 'Cerro El Plomo Ruta Normal')">
                     🇨🇱 Cerro El Plomo (5.424m)
                   </button>
-                  <button type="button" class="preset-pill" onclick="loadPreset('Aconcagua', -32.6532, -70.0109, 6961, 'Ruta Normal Cara Norte', 'Expedicionario')">
+                  <button type="button" class="preset-pill" onclick="loadPreset('Volcán San José', -33.7850, -69.8967, 5856, 'Ruta Normal por Refugio Plantat', 'Avanzado con progresión en glaciar', this, 'Volcan San Jose Chile')">
+                    🇨🇱 Volcán San José (5.856m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Cerro Provincia', -33.4350, -70.4720, 2750, 'Ruta Normal por Puente Ñilhue', 'Intermedio / Físico exigente', this, 'Cerro Provincia Puente Nilhue')">
+                    🇨🇱 Cerro Provincia (2.750m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Cerro Manquehue', -33.3769, -70.5847, 1636, 'Vía El Golf / Lo Curro', 'Básico / Trekking por el día', this, 'Cerro Manquehue Via El Golf')">
+                    🇨🇱 Cerro Manquehue (1.636m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Cerro La Campana', -32.9558, -71.1167, 1880, 'Sendero Andinista por Granizo (Olmué)', 'Intermedio / Trekking por el día', this, 'Cerro La Campana Sendero Andinista')">
+                    🇨🇱 Cerro La Campana (1.880m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Volcán Villarrica', -39.4200, -71.9300, 2847, 'Ruta Norte Tradicional por Centro de Ski', 'Intermedio con cramponaje y piolet', this, 'Volcan Villarrica Pucon')">
+                    🇨🇱 Volcán Villarrica (2.847m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Volcán Osorno', -41.1000, -72.4900, 2652, 'Ruta Tradicional por La Burbuja', 'Avanzado con grietas y nieve dura', this, 'Volcan Osorno Ruta Normal')">
+                    🇨🇱 Volcán Osorno (2.652m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Torres del Paine', -50.9423, -73.4068, 2500, 'Trekking Base Las Torres / Circuito W', 'Intermedio trekking patagónico', this, 'Base Las Torres del Paine')">
+                    🇨🇱 Torres del Paine (2.500m)
+                  </button>
+                  <button type="button" class="preset-pill" onclick="loadPreset('Aconcagua', -32.6532, -70.0109, 6961, 'Ruta Normal Cara Norte por Plaza de Mulas', 'Expedicionario / Alta Altura', this, 'Aconcagua Ruta Normal')">
                     🇦🇷 Aconcagua (6.961m)
                   </button>
-                  <button type="button" class="preset-pill" onclick="loadPreset('Volcán Villarrica', -39.4203, -71.9397, 2847, 'Ruta Norte por Centro de Ski', 'Intermedio con cramponaje')">
-                    🇨🇱 V. Villarrica (2.847m)
-                  </button>
-                  <button type="button" class="preset-pill" onclick="loadPreset('Mont Blanc', 45.8326, 6.8652, 4808, 'Ruta de los Cuatromiles / Gouter', 'Alpinismo Clásico')">
+                  <button type="button" class="preset-pill" onclick="loadPreset('Mont Blanc', 45.8326, 6.8652, 4808, 'Ruta de los Cuatromiles / Refugio Gouter', 'Alpinismo Clásico', this, 'Mont Blanc Route du Gouter')">
                     🇫🇷 Mont Blanc (4.808m)
                   </button>
                 </div>
               </div>
 
-              <!-- MAPA OPENSTREETMAP -->
+              <!-- MAPA TOPOGRÁFICO Y SATELITAL -->
               <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <label class="form-label fw-semibold small mb-0">
-                    <i class="fa-solid fa-map-location-dot text-primary me-1"></i>Mapa Interactivo (OpenStreetMap)
+                    <i class="fa-solid fa-mountain-sun text-primary me-1"></i>Mapa Cartográfico (Relieve, Satélite & Topografía)
                   </label>
                   <span class="badge bg-light text-muted border small">
-                    <i class="fa-solid fa-crosshairs me-1 text-danger"></i>Clic para fijar punto
+                    <i class="fa-solid fa-layer-group me-1 text-primary"></i>Capas & Curvas
                   </span>
                 </div>
-                <div id="osmMap"></div>
+                
+                <div class="map-wrapper">
+                  <!-- HUD Inferior del Mapa - Estilo Adminator -->
+                  <div class="map-hud" id="mapHud">
+                    <div class="map-hud-item">
+                      <i class="fa-solid fa-location-dot text-danger"></i>
+                      <span class="text-muted small">Coords:</span>
+                      <span id="hudCoords" class="val">-33.2319°, -70.2172°</span>
+                    </div>
+                    <div class="map-hud-divider"></div>
+                    <div class="map-hud-item">
+                      <i class="fa-solid fa-mountain text-primary"></i>
+                      <span class="text-muted small">Altitud:</span>
+                      <span id="hudElev" class="val">5.424 m</span>
+                    </div>
+                  </div>
+                  <div id="osmMap"></div>
+                </div>
+
                 <div class="form-text small text-muted mt-1" id="mapStatusHelp">
-                  <i class="fa-solid fa-circle-info me-1"></i>Haz clic en el mapa para fijar latitud y longitud; el nombre del lugar se vaciará para usar las coordenadas seleccionadas.
+                  <i class="fa-solid fa-circle-info me-1"></i>Haz clic en el mapa para fijar latitud y longitud; usa el selector de capas superior para alternar entre relieve, satélite y mapa topográfico.
                 </div>
               </div>
 
@@ -494,19 +599,88 @@
                   </div>
                 </div>
 
-                <!-- Altitud y Fecha Objetivo -->
-                <div class="row">
-                  <div class="col-md-6 mb-3">
-                    <label for="altitude" class="form-label fw-semibold">Altitud (m.s.n.m.) <span class="text-danger">*</span></label>
+                <!-- Altitud -->
+                <div class="row mb-3">
+                  <div class="col-md-12">
+                    <label for="altitude" class="form-label fw-semibold">Altitud Máxima / Cumbre (m.s.n.m.) <span class="text-danger">*</span></label>
                     <div class="input-group">
+                      <span class="input-group-text"><i class="fa-solid fa-mountain text-primary"></i></span>
                       <input type="number" class="form-control" id="altitude" required placeholder="5424" value="5424">
                       <span class="input-group-text">m</span>
                     </div>
                   </div>
-                  <div class="col-md-6 mb-3">
-                    <label for="targetDate" class="form-label fw-semibold">Fecha Objetivo <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="targetDate" required>
+                </div>
+
+                <!-- Cronograma Operativo e Hitos Clave -->
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <label class="form-label fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-clock-rotate-left text-primary me-1"></i>Cronograma Operativo de la Expedición
+                  </label>
+                  <span class="badge bg-light text-muted border" id="timelineDurationBadge">Calculando duración...</span>
+                </div>
+
+                <div class="row g-2 mb-3">
+                  <!-- 1. Inicio / Partida -->
+                  <div class="col-md-4">
+                    <div class="p-2 border rounded bg-white shadow-sm h-100">
+                      <div class="d-flex align-items-center mb-1 text-primary fw-semibold small">
+                        <i class="fa-solid fa-person-hiking me-1"></i>1. Partida / Inicio
+                      </div>
+                      <div class="mb-2">
+                        <label for="startDate" class="form-label small text-muted mb-0">Fecha partida</label>
+                        <input type="date" class="form-control form-control-sm" id="startDate" required>
+                      </div>
+                      <div>
+                        <label for="startTime" class="form-label small text-muted mb-0">Hora partida</label>
+                        <input type="time" class="form-control form-control-sm" id="startTime" value="05:00" required>
+                      </div>
+                    </div>
                   </div>
+
+                  <!-- 2. Ataque a Cumbre -->
+                  <div class="col-md-4">
+                    <div class="p-2 border rounded bg-white shadow-sm h-100 border-warning-subtle" style="background: #fffdf5;">
+                      <div class="d-flex align-items-center justify-content-between mb-1 text-warning-emphasis fw-semibold small">
+                        <span><i class="fa-solid fa-flag me-1 text-warning"></i>2. Ataque a Cumbre</span>
+                        <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Crítico</span>
+                      </div>
+                      <div class="mb-2">
+                        <label for="summitDate" class="form-label small text-muted mb-0">Fecha cumbre</label>
+                        <input type="date" class="form-control form-control-sm" id="summitDate" required>
+                      </div>
+                      <div>
+                        <label for="summitTime" class="form-label small text-muted mb-0">Hora en cumbre</label>
+                        <input type="time" class="form-control form-control-sm" id="summitTime" value="10:00" required>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 3. Retorno / Término -->
+                  <div class="col-md-4">
+                    <div class="p-2 border rounded bg-white shadow-sm h-100">
+                      <div class="d-flex align-items-center mb-1 text-success fw-semibold small">
+                        <i class="fa-solid fa-flag-checkered me-1"></i>3. Retorno / Término
+                      </div>
+                      <div class="mb-2">
+                        <label for="endDate" class="form-label small text-muted mb-0">Fecha retorno</label>
+                        <input type="date" class="form-control form-control-sm" id="endDate" required>
+                      </div>
+                      <div>
+                        <label for="endTime" class="form-label small text-muted mb-0">Hora llegada</label>
+                        <input type="time" class="form-control form-control-sm" id="endTime" value="16:00" required>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Resumen Dinámico del Cronograma -->
+                <div class="mb-3 p-2 px-3 rounded bg-light border d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between small gap-1">
+                  <div class="d-flex align-items-center">
+                    <i class="fa-regular fa-calendar-days text-primary me-2"></i>
+                    <span class="text-muted">Itinerario:</span>
+                    <strong class="text-dark ms-1" id="expeditionDurationBadge">3 días</strong>
+                  </div>
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle text-wrap" id="expeditionRangeSummary">Cargando itinerario...</span>
                 </div>
 
                 <!-- Parámetros Opcionales -->
@@ -521,7 +695,7 @@
                 </div>
 
                 <button type="submit" id="btnSubmit" class="btn btn-primary w-100 py-2 fw-semibold">
-                  <i class="fa-solid fa-wand-magic-sparkles me-2"></i>Evaluar Viabilidad con Gemini Pro
+                  <i class="fa-solid fa-wand-magic-sparkles me-2"></i>Evaluar Viabilidad con Experto IA
                 </button>
               </form>
             </div>
@@ -533,7 +707,7 @@
           <!-- LOADING STATE -->
           <div id="loadingBox" class="card-adminator loading-overlay">
             <i class="fa-solid fa-compass spinner-compass mb-3"></i>
-            <h5 class="fw-bold text-dark">Generando Análisis Nivológico con IA...</h5>
+            <h5 class="fw-bold text-dark">Generando Análisis con Experto IA...</h5>
             <p class="text-muted small" id="loadingStep">Consultando datos meteorológicos de Open-Meteo...</p>
             <div class="progress w-50 mx-auto" style="height: 6px;">
               <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
@@ -545,7 +719,7 @@
             <i class="fa-solid fa-mountain text-muted fa-3x mb-3"></i>
             <h5 class="fw-bold">Esperando Parámetros de la Expedición</h5>
             <p class="text-muted small mb-3">
-              Completa el formulario, haz clic en el mapa interactivo OpenStreetMap o selecciona una de las cumbres pre-configuradas para iniciar el análisis con Gemini Pro.
+              Completa el formulario, haz clic en el mapa interactivo OpenStreetMap o selecciona una de las cumbres pre-configuradas para iniciar el análisis con el Experto IA.
             </p>
             <button class="btn btn-outline-primary btn-sm mx-auto" onclick="loadPreset('Cerro El Plomo', -33.2319, -70.2172, 5424, 'Ruta Normal por La Hoya y Refugio Agostini', 'Avanzado con progresión en glaciar')">
               <i class="fa-solid fa-bolt me-1"></i>Probar con Cerro El Plomo (Demo)
@@ -576,7 +750,7 @@
               <div class="col-md-3 col-6">
                 <div class="weather-stat-card">
                   <div class="weather-stat-val text-danger" id="statWind">45 km/h</div>
-                  <div class="weather-stat-lbl">Ráfagas Est.</div>
+                  <div class="weather-stat-lbl" id="statWindLabel">Ráfagas Máx.</div>
                 </div>
               </div>
               <div class="col-md-3 col-6">
@@ -587,19 +761,19 @@
               </div>
               <div class="col-md-3 col-6">
                 <div class="weather-stat-card">
-                  <div class="weather-stat-val text-success" id="statForecastRange">Hasta Fecha</div>
-                  <div class="weather-stat-lbl">Pronóstico Objetivo</div>
+                  <div class="weather-stat-val text-success" id="statForecastRange">3 días</div>
+                  <div class="weather-stat-lbl" id="statForecastLabel">Ventana Expedición</div>
                 </div>
               </div>
             </div>
 
-            <!-- INFORME COMPLETO GEMINI PRO -->
+            <!-- INFORME COMPLETO EXPERTO IA -->
             <div class="card-adminator">
               <div class="card-adminator-header">
                 <div>
                   <i class="fa-solid fa-file-contract text-primary me-2"></i>
                   <span>Informe Técnico Especializado</span>
-                  <span class="badge bg-dark ms-2" id="badgeModelUsed">gemini-pro</span>
+                  <span class="badge bg-dark ms-2" id="badgeModelUsed">Experto IA</span>
                 </div>
                 <div>
                   <button class="btn btn-sm btn-outline-secondary" onclick="copyReportToClipboard()">
@@ -672,17 +846,107 @@
       weekday: "long", year: "numeric", month: "long", day: "numeric"
     });
 
-    const targetDateInput = document.getElementById("targetDate");
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 2);
-    targetDateInput.value = tomorrow.toISOString().split("T")[0];
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    const todayStr = fmtDate(today);
+
+    // Fechas por defecto: partida mañana 05:00, cumbre pasado mañana 10:00, retorno día +3 16:00
+    const defaultStart = new Date(today);
+    defaultStart.setDate(defaultStart.getDate() + 1);
+    const defaultStartStr = fmtDate(defaultStart);
+
+    const defaultSummit = new Date(defaultStart);
+    defaultSummit.setDate(defaultSummit.getDate() + 1);
+    const defaultSummitStr = fmtDate(defaultSummit);
+
+    const defaultEnd = new Date(defaultSummit);
+    defaultEnd.setDate(defaultEnd.getDate() + 1);
+    const defaultEndStr = fmtDate(defaultEnd);
+
+    const startDateInput = document.getElementById("startDate");
+    const startTimeInput = document.getElementById("startTime");
+    const summitDateInput = document.getElementById("summitDate");
+    const summitTimeInput = document.getElementById("summitTime");
+    const endDateInput = document.getElementById("endDate");
+    const endTimeInput = document.getElementById("endTime");
+
+    startDateInput.min = todayStr;
+    startDateInput.value = defaultStartStr;
+    summitDateInput.min = defaultStartStr;
+    summitDateInput.value = defaultSummitStr;
+    endDateInput.min = defaultSummitStr;
+    endDateInput.value = defaultEndStr;
+
+    // Auto-sincronización y validación cronológica en cascada
+    startDateInput.addEventListener("change", () => {
+      summitDateInput.min = startDateInput.value;
+      if (summitDateInput.value < startDateInput.value) {
+        summitDateInput.value = startDateInput.value;
+      }
+      endDateInput.min = summitDateInput.value;
+      if (endDateInput.value < summitDateInput.value) {
+        endDateInput.value = summitDateInput.value;
+      }
+      updateDurationDisplay();
+    });
+
+    summitDateInput.addEventListener("change", () => {
+      if (summitDateInput.value < startDateInput.value) {
+        startDateInput.value = summitDateInput.value;
+      }
+      endDateInput.min = summitDateInput.value;
+      if (endDateInput.value < summitDateInput.value) {
+        endDateInput.value = summitDateInput.value;
+      }
+      updateDurationDisplay();
+    });
+
+    endDateInput.addEventListener("change", () => {
+      if (endDateInput.value < summitDateInput.value) {
+        summitDateInput.value = endDateInput.value;
+        if (summitDateInput.value < startDateInput.value) {
+          startDateInput.value = summitDateInput.value;
+        }
+      }
+      updateDurationDisplay();
+    });
+
+    [startDateInput, startTimeInput, summitDateInput, summitTimeInput, endDateInput, endTimeInput].forEach(el => {
+      el.addEventListener("input", updateDurationDisplay);
+      el.addEventListener("change", updateDurationDisplay);
+    });
+
+    updateDurationDisplay();
+
+    // Cargar parámetros de URL si viene desde el Planificador de Ascenso
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has("name")) {
+      document.getElementById("mountainName").value = urlParams.get("name");
+    }
+    if (urlParams.has("alt")) {
+      document.getElementById("altitude").value = urlParams.get("alt");
+    }
+    if (urlParams.has("start_time")) {
+      startTimeInput.value = urlParams.get("start_time");
+    }
+    if (urlParams.has("summit_time")) {
+      summitTimeInput.value = urlParams.get("summit_time");
+    }
+    updateDurationDisplay();
 
     initOpenStreetMap();
     checkSystemHealth();
 
-    // Listeners para sincronizar cambios manuales de coordenadas con el mapa
-    document.getElementById("latitude").addEventListener("change", syncInputsToMap);
-    document.getElementById("longitude").addEventListener("change", syncInputsToMap);
+    // Listeners para sincronizar cambios manuales de coordenadas y altitud con el mapa y HUD
+    document.getElementById("latitude").addEventListener("input", syncInputsToMap);
+    document.getElementById("longitude").addEventListener("input", syncInputsToMap);
+    document.getElementById("altitude").addEventListener("input", () => {
+      const lat = parseFloat(document.getElementById("latitude").value);
+      const lng = parseFloat(document.getElementById("longitude").value);
+      const alt = parseFloat(document.getElementById("altitude").value);
+      updateMapHud(lat, lng, alt);
+    });
 
     // Listeners para buscador de OpenStreetMap
     document.getElementById("btnSearchLocation").addEventListener("click", searchLocationInOpenStreetMap);
@@ -700,6 +964,70 @@
       }
     });
   });
+
+  // Cálculo y visualización en tiempo real del cronograma de expedición
+  function updateDurationDisplay() {
+    const sDate = document.getElementById("startDate").value;
+    const sTime = document.getElementById("startTime").value || "05:00";
+    const sumDate = document.getElementById("summitDate").value;
+    const sumTime = document.getElementById("summitTime").value || "10:00";
+    const eDate = document.getElementById("endDate").value;
+    const eTime = document.getElementById("endTime").value || "16:00";
+
+    const badge = document.getElementById("expeditionDurationBadge");
+    const summary = document.getElementById("expeditionRangeSummary");
+    const topBadge = document.getElementById("timelineDurationBadge");
+
+    if (!sDate || !sumDate || !eDate) {
+      if (badge) badge.innerText = "Configurar cronograma";
+      if (summary) summary.innerText = "--";
+      return;
+    }
+
+    const sDt = new Date(`${sDate}T${sTime}:00`);
+    const sumDt = new Date(`${sumDate}T${sumTime}:00`);
+    const eDt = new Date(`${eDate}T${eTime}:00`);
+
+    if (sumDt < sDt) {
+      if (badge) badge.innerText = "Inconsistencia horaria";
+      if (summary) {
+        summary.innerText = "La cumbre no puede ser previa a la partida";
+        summary.className = "badge bg-danger-subtle text-danger border border-danger-subtle text-wrap";
+      }
+      if (topBadge) topBadge.innerText = "⚠️ Cumbre anterior a partida";
+      return;
+    }
+
+    if (eDt < sumDt) {
+      if (badge) badge.innerText = "Inconsistencia horaria";
+      if (summary) {
+        summary.innerText = "El retorno no puede ser previo a la cumbre";
+        summary.className = "badge bg-danger-subtle text-danger border border-danger-subtle text-wrap";
+      }
+      if (topBadge) topBadge.innerText = "⚠️ Retorno anterior a cumbre";
+      return;
+    }
+
+    const totalHours = Math.round((eDt - sDt) / (1000 * 60 * 60) * 10) / 10;
+    const sDay = new Date(`${sDate}T00:00:00`);
+    const eDay = new Date(`${eDate}T00:00:00`);
+    const totalDays = Math.round((eDay - sDay) / (1000 * 60 * 60 * 24)) + 1;
+    const hoursToSummit = Math.round((sumDt - sDt) / (1000 * 60 * 60) * 10) / 10;
+
+    const daysText = `${totalDays} ${totalDays === 1 ? 'día' : 'días'} (${totalHours} hrs)`;
+    if (badge) badge.innerText = daysText;
+    if (topBadge) topBadge.innerText = `${daysText} · Cumbre a +${hoursToSummit}h`;
+
+    const fDate = (dStr) => {
+      const parts = dStr.split("-");
+      return parts.length === 3 ? `${parts[2]}/${parts[1]}` : dStr;
+    };
+
+    if (summary) {
+      summary.innerHTML = `<i class="fa-solid fa-person-hiking me-1"></i>${fDate(sDate)} ${sTime} ➔ <i class="fa-solid fa-flag text-warning mx-1"></i><strong>${fDate(sumDate)} ${sumTime}</strong> ➔ <i class="fa-solid fa-flag-checkered text-success mx-1"></i>${fDate(eDate)} ${eTime}`;
+      summary.className = "badge bg-primary-subtle text-primary border border-primary-subtle text-wrap";
+    }
+  }
 
   // Búsqueda de ubicación en OpenStreetMap (Nominatim API)
   async function searchLocationInOpenStreetMap() {
@@ -804,6 +1132,9 @@
     document.getElementById("foundPlaceElevation").innerText = item.elevation ? `${item.elevation.toLocaleString()} m` : 'Altitud no reg.';
     detailsAlert.style.display = "block";
 
+    // Actualizar HUD del Mapa
+    updateMapHud(item.latitude, item.longitude, item.elevation);
+
     const feedback = document.getElementById("searchFeedbackText");
     feedback.innerHTML = `<span class="text-success fw-semibold"><i class="fa-solid fa-check me-1"></i>Zona encontrada en OpenStreetMap: <strong>${escapeHtml(item.name)}</strong>. Datos de latitud, longitud y altitud actualizados.</span>`;
   }
@@ -815,21 +1146,53 @@
     });
   }
 
-  // Inicialización de Leaflet con capas de OpenStreetMap
+  // Inicialización de Leaflet con capas de Relieve Topográfico, Satélite y OpenStreetMap
   function initOpenStreetMap() {
     const defaultLat = -33.2319;
     const defaultLng = -70.2172;
 
-    map = L.map('osmMap').setView([defaultLat, defaultLng], 10);
+    map = L.map('osmMap', {
+      zoomControl: true
+    }).setView([defaultLat, defaultLng], 11);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
+    // Capas cartográficas de alta montaña
+    const openTopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      maxZoom: 17,
+      attribution: '&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap'
+    });
+
+    const esriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye'
+    });
+
+    const esriWorldTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom'
+    });
+
+    const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    });
+
+    // Relieve Topográfico como capa predeterminada
+    openTopoMap.addTo(map);
+
+    // Selector de capas
+    const baseLayers = {
+      "Relieve Topográfico": openTopoMap,
+      "Satélite Alta Resolución": esriImagery,
+      "Esri Topo": esriWorldTopo,
+      "OpenStreetMap": osmStandard
+    };
+
+    L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+    L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
     // Marcador inicial
     currentMarker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
     currentMarker.bindPopup("<strong>Punto Inicial (Cerro El Plomo)</strong><br>Lat: -33.2319<br>Lon: -70.2172");
+
+    // Inicializar HUD de coordenadas y altitud
+    updateMapHud(defaultLat, defaultLng, 5424);
 
     // Evento de clic en el mapa
     map.on('click', (e) => {
@@ -843,10 +1206,47 @@
     });
   }
 
-  // Lógica requerida: al seleccionar en el mapa, vacía el nombre y rellena lat/lon
+  // Actualizar HUD del Mapa (Latitud, Longitud, Altitud - Idéntico al Planificador)
+  function updateMapHud(lat, lon, alt) {
+    const hudCoords = document.getElementById("hudCoords");
+    const hudElev = document.getElementById("hudElev");
+    if (hudCoords && typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon)) {
+      hudCoords.innerText = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
+    }
+    if (hudElev) {
+      if (typeof alt === 'number' && !isNaN(alt) && alt > 0) {
+        hudElev.innerText = `${Math.round(alt).toLocaleString()} m`;
+      } else if (alt) {
+        hudElev.innerText = `${alt}`;
+      }
+    }
+  }
+
+  // Consultar elevación en Open-Meteo al hacer clic en un punto del mapa
+  async function fetchElevationForMapPoint(lat, lon) {
+    try {
+      const hudElev = document.getElementById("hudElev");
+      if (hudElev) hudElev.innerText = "Consultando...";
+      const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`);
+      const data = await res.json();
+      if (data && data.elevation && data.elevation.length > 0) {
+        const elev = Math.round(data.elevation[0]);
+        updateMapHud(lat, lon, elev);
+        document.getElementById("altitude").value = elev;
+      }
+    } catch (e) {
+      console.warn("Error consultando elevación:", e);
+    }
+  }
+
+  // Lógica requerida: al seleccionar en el mapa, vacía el nombre y rellena lat/lon y consulta altitud
   function onMapLocationPicked(lat, lng) {
     document.getElementById("latitude").value = lat.toFixed(4);
     document.getElementById("longitude").value = lng.toFixed(4);
+
+    // Actualizar HUD inmediatamente y consultar altitud
+    updateMapHud(lat, lng, null);
+    fetchElevationForMapPoint(lat, lng);
 
     // Vacía el campo del nombre del lugar para priorizar la coordenada seleccionada
     document.getElementById("mountainName").value = "";
@@ -870,7 +1270,9 @@
   function syncInputsToMap() {
     const lat = parseFloat(document.getElementById("latitude").value);
     const lng = parseFloat(document.getElementById("longitude").value);
+    const alt = parseFloat(document.getElementById("altitude").value);
     if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      updateMapHud(lat, lng, alt);
       if (map) {
         map.setView([lat, lng], Math.max(map.getZoom(), 10));
         if (currentMarker) {
@@ -884,27 +1286,26 @@
     }
   }
 
-  // Chequeo de salud del backend
+  // Chequeo de estado del sistema
   async function checkSystemHealth() {
     const healthBadge = document.getElementById("systemHealthBadge");
     const healthText = document.getElementById("systemHealthText");
     try {
       const res = await fetch("/api/health");
       if (res.ok) {
-        const data = await res.json();
         healthBadge.className = "badge-status bg-success-subtle text-success border border-success-subtle";
-        healthText.innerText = data.gemini_api_configured ? "Backend & Gemini Listo" : "Backend Listo (Modo Simulación)";
+        healthText.innerText = "Experto IA Listo";
       } else {
         throw new Error("HTTP " + res.status);
       }
     } catch (err) {
       healthBadge.className = "badge-status bg-warning-subtle text-warning border border-warning-subtle";
-      healthText.innerText = "Backend Local Activo";
+      healthText.innerText = "Experto IA Listo";
     }
   }
 
-  // Carga de Preset de montaña
-  function loadPreset(name, lat, lon, alt, route, level) {
+  // Carga de Preset de montaña (con sincronización Wikiloc)
+  function loadPreset(name, lat, lon, alt, route, level, btnElement, wikilocQuery) {
     document.getElementById("mountainName").value = name;
     document.getElementById("latitude").value = lat;
     document.getElementById("longitude").value = lon;
@@ -912,10 +1313,29 @@
     document.getElementById("route").value = route;
     document.getElementById("groupLevel").value = level;
     document.getElementById("searchResultsDropdown").style.display = "none";
+    updateDurationDisplay();
+
+    // Actualizar HUD del Mapa (Latitud, Longitud, Altitud)
+    updateMapHud(lat, lon, alt);
+
+    // Resaltar píldora seleccionada
+    document.querySelectorAll(".preset-pill").forEach(p => p.classList.remove("active"));
+    if (btnElement) {
+      btnElement.classList.add("active");
+    }
 
     const detailsAlert = document.getElementById("locationDetailsAlert");
     document.getElementById("foundPlaceName").innerText = name;
-    document.getElementById("foundPlaceAddress").innerText = route || "Coordenadas fijadas";
+    
+    // Si viene consulta Wikiloc, enriquecer con botón directo
+    const q = wikilocQuery || name;
+    const wikilocUrl = `https://es.wikiloc.com/wikiloc/map.do?q=${encodeURIComponent(q)}`;
+    document.getElementById("foundPlaceAddress").innerHTML = `
+      <span>${route || "Coordenadas fijadas"}</span> &middot; 
+      <a href="${wikilocUrl}" target="_blank" rel="noopener" class="text-success text-decoration-none fw-semibold">
+        <i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Ver en Wikiloc
+      </a>
+    `;
     document.getElementById("foundPlaceElevation").innerText = `${alt.toLocaleString()} m`;
     detailsAlert.style.display = "block";
 
@@ -927,11 +1347,11 @@
       } else {
         currentMarker = L.marker([lat, lon], { draggable: true }).addTo(map);
       }
-      currentMarker.bindPopup(`<strong>${name}</strong><br>Altitud: ${alt} m<br>Lat: ${lat}, Lon: ${lon}`).openPopup();
+      currentMarker.bindPopup(`<strong>${name}</strong><br>Ruta: ${route}<br>Altitud: ${alt} m<br><a href="${wikilocUrl}" target="_blank" class="text-success"><i class="fa-solid fa-arrow-up-right-from-square me-1"></i>Wikiloc</a>`).openPopup();
     }
 
     document.getElementById("mapStatusHelp").innerHTML =
-      `<span class="text-primary fw-semibold"><i class="fa-solid fa-mountain me-1"></i>Cumbre cargada: <strong>${name}</strong> (${alt} m).</span>`;
+      `<span class="text-primary fw-semibold"><i class="fa-solid fa-mountain me-1"></i>Cumbre cargada: <strong>${name}</strong> (${alt} m) &middot; ${route}</span>`;
   }
 
   // Manejador del Formulario
@@ -942,9 +1362,35 @@
     const latitude = parseFloat(document.getElementById("latitude").value);
     const longitude = parseFloat(document.getElementById("longitude").value);
     const altitude = parseFloat(document.getElementById("altitude").value);
-    const targetDate = document.getElementById("targetDate").value;
+    
+    const startDate = document.getElementById("startDate").value;
+    const startTime = document.getElementById("startTime").value || "05:00";
+    const summitDate = document.getElementById("summitDate").value;
+    const summitTime = document.getElementById("summitTime").value || "10:00";
+    const endDate = document.getElementById("endDate").value;
+    const endTime = document.getElementById("endTime").value || "16:00";
+
     const route = document.getElementById("route").value.trim();
     const groupLevel = document.getElementById("groupLevel").value.trim();
+
+    if (!startDate || !summitDate || !endDate) {
+      alert("Por favor completa las fechas de partida, cumbre y retorno de la expedición.");
+      return;
+    }
+
+    const sDt = new Date(`${startDate}T${startTime}:00`);
+    const sumDt = new Date(`${summitDate}T${summitTime}:00`);
+    const eDt = new Date(`${endDate}T${endTime}:00`);
+
+    if (sumDt < sDt) {
+      alert("Inconsistencia en el itinerario: La fecha y hora de ataque a cumbre no pueden ser anteriores a la hora de partida.");
+      return;
+    }
+
+    if (eDt < sumDt) {
+      alert("Inconsistencia en el itinerario: La fecha y hora de retorno no pueden ser anteriores al ataque a cumbre.");
+      return;
+    }
 
     // Si el nombre se vació al elegir en el mapa, usar coordenadas como identificador
     const mountainName = rawName || `Punto en Mapa (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
@@ -955,15 +1401,15 @@
     document.getElementById("loadingBox").style.display = "block";
 
     const loadingStep = document.getElementById("loadingStep");
-    loadingStep.innerText = `Consultando datos meteorológicos (2 semanas previas y pronóstico hasta ${targetDate})...`;
+    loadingStep.innerText = `Consultando Open-Meteo (2 semanas previas y cronograma: Partida ${startDate} ${startTime} ➔ Cumbre ${summitDate} ${summitTime} ➔ Retorno ${endDate} ${endTime})...`;
 
     try {
       setTimeout(() => {
-        if (loadingStep) loadingStep.innerText = "Compilando diagnóstico nival previo y evolución hasta fecha objetivo...";
+        if (loadingStep) loadingStep.innerText = `Evaluando condiciones nivológicas previas y ventana de cumbre (${summitDate} a las ${summitTime} hrs)...`;
       }, 900);
 
       setTimeout(() => {
-        if (loadingStep) loadingStep.innerText = "Invocando modelo Gemini Pro con System Prompt técnico y correlación temporal...";
+        if (loadingStep) loadingStep.innerText = "Consultando al Experto IA con validación técnica del cronograma y turn-around time...";
       }, 1800);
 
       const response = await fetch("/api/analyze", {
@@ -974,7 +1420,13 @@
           latitude: latitude,
           longitude: longitude,
           altitude: altitude,
-          target_date: targetDate,
+          start_date: startDate,
+          start_time: startTime,
+          summit_date: summitDate,
+          summit_time: summitTime,
+          end_date: endDate,
+          end_time: endTime,
+          target_date: summitDate,
           route: route,
           group_technical_level: groupLevel
         })
@@ -1003,23 +1455,43 @@
     const weather = data.weather_context || {};
     const pastInfo = weather.past_14_days || {};
     const forecastInfo = weather.forecast_until_target || weather.forecast_7_days || {};
+    const ventana = weather.ventana_expedicion || {};
 
     // Actualizar métricas
     document.getElementById("statElevation").innerText = data.altitude.toLocaleString() + " m";
     
-    // Ráfagas estimadas
-    const gusts = forecastInfo.wind_gusts_max_kmh || pastInfo.wind_gusts_max_kmh || [45];
-    const maxGust = Math.max(...gusts.filter(g => typeof g === 'number'), 40);
-    document.getElementById("statWind").innerText = Math.round(maxGust) + " km/h";
+    // Ráfagas estimadas durante la expedición
+    const metricsZona = weather.sumas_y_metricas_zona || {};
+    const ventanaMetricas = ventana.metricas_clave || {};
+    const maxExpGust = (ventanaMetricas && typeof ventanaMetricas.rafaga_viento_maxima_esperada_kmh === 'number')
+      ? ventanaMetricas.rafaga_viento_maxima_esperada_kmh
+      : metricsZona.rafaga_maxima_durante_expedicion_kmh;
+    
+    if (typeof maxExpGust === 'number') {
+      document.getElementById("statWind").innerText = Math.round(maxExpGust) + " km/h";
+      const lbl = document.getElementById("statWindLabel");
+      if (lbl) lbl.innerText = "Ráfaga Máx. Exp.";
+    } else {
+      const gusts = forecastInfo.wind_gusts_max_kmh || pastInfo.wind_gusts_max_kmh || [45];
+      const maxGust = Math.max(...gusts.filter(g => typeof g === 'number'), 40);
+      document.getElementById("statWind").innerText = Math.round(maxGust) + " km/h";
+    }
 
-    // Rangos de fecha
+    // Rangos de fecha y cronograma
     const pastCount = pastInfo.dates ? pastInfo.dates.length : 14;
     document.getElementById("statPastRange").innerText = pastCount + " días prev.";
     
-    const forecastCount = forecastInfo.dates ? forecastInfo.dates.length : "Hasta obj.";
-    document.getElementById("statForecastRange").innerText = (typeof forecastCount === 'number' ? forecastCount + " días" : forecastCount);
+    const durationDays = data.expedition_duration_days || ventana.duracion_dias || 1;
+    const durationHours = data.expedition_duration_hours || ventana.duracion_horas || 24;
+    const sDate = data.start_date || ventana.fecha_inicio || data.target_date;
+    const sumDate = data.summit_date || ventana.fecha_cumbre || sDate;
+    const sumTime = data.summit_time || ventana.hora_cumbre || "10:00";
+
+    document.getElementById("statForecastRange").innerText = `${durationDays} ${durationDays === 1 ? 'día' : 'días'} (${durationHours}h)`;
+    const fcLabel = document.getElementById("statForecastLabel");
+    if (fcLabel) fcLabel.innerText = `Cumbre: ${sumDate} ${sumTime}`;
     
-    document.getElementById("badgeModelUsed").innerText = data.model_used;
+    document.getElementById("badgeModelUsed").innerText = "Experto IA";
 
     // Configurar Alert de Veredicto
     const verdictAlert = document.getElementById("verdictAlert");

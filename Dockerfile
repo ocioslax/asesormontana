@@ -23,10 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el código de la aplicación y la interfaz
-COPY main.py .
-COPY index.html .
-COPY planificador.html .
+# Copiar el código de la aplicación y la interfaz bajo src/
+COPY src/ ./src/
 
 # Crear un usuario no privilegiado para ejecución segura
 RUN useradd -m appuser && chown -R appuser:appuser /app
@@ -36,4 +34,4 @@ USER appuser
 EXPOSE 8080
 
 # Comando de ejecución con Uvicorn leyendo la variable PORT de Cloud Run
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "exec uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

@@ -27,20 +27,26 @@ El **Asesor de Seguridad en Alta Montaña** es una plataforma web completa dise�
 
 ```text
 .
-├── Grupo 1 - Prompt Maestro.md    # Especificación y requerimientos originales
-├── main.py                         # Backend FastAPI + Lógica Gemini Pro + Open-Meteo
-├── index.html                      # Frontend interactivo estilo Adminator
-├── requirements.txt                # Dependencias Python
-├── Dockerfile                      # Imagen Docker optimizada (Python 3.11-slim)
-├── docker-compose.yml              # Orquestación local para desarrollo
-├── vercel.json                     # Adaptador Serverless para despliegue en Vercel
+├── Grupo 1 - Prompt Maestro.md              # Especificación y requerimientos originales
+├── Grupo 1 - Prompt 1 - Construccion Codigo.md  # Prompt de reconstrucción y stack
+├── Grupo 1 - Prompt 2 - Upload y cicd.md    # Prompt de GitHub y despliegue en GCP
+├── src/
+│   ├── __init__.py                          # Paquete Python del aplicativo
+│   ├── main.py                              # Backend FastAPI + Lógica Gemini + Open-Meteo
+│   ├── index.html                           # Frontend interactivo estilo Adminator
+│   └── planificador.html                    # Planificador detallado de ascenso
+├── requirements.txt                         # Dependencias Python
+├── Dockerfile                               # Imagen Docker optimizada (Python 3.11-slim / Cloud Run)
+├── docker-compose.yml                       # Orquestación local para desarrollo
+├── Procfile                                 # Comando de inicio para PaaS / Cloud Run
+├── vercel.json                              # Adaptador Serverless para despliegue en Vercel
 ├── .github/
 │   └── workflows/
-│       ├── main.yml                # Pipeline CI/CD principal
-│       └── deploy.yml              # Pipeline de PR y despliegue continuo
-├── .env.example                    # Plantilla de variables de entorno
-├── .gitignore                      # Exclusiones de control de versiones
-└── README.md                       # Documentación técnica completa
+│       ├── main.yml                         # Pipeline CI/CD principal
+│       └── deploy.yml                       # Pipeline de PR y despliegue continuo
+├── .env.example                             # Plantilla de variables de entorno
+├── .gitignore                               # Exclusiones de control de versiones
+└── README.md                                # Documentación técnica completa
 ```
 
 ---
@@ -102,7 +108,7 @@ Estructura tu respuesta EXACTAMENTE en los siguientes 3 apartados:
 
 4. **Ejecutar el servidor Uvicorn:**
    ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 5. Abrir [http://localhost:8000](http://localhost:8000) en el navegador.

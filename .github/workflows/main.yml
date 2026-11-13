@@ -35,7 +35,7 @@ jobs:
 
       - name: Validar Sintaxis e Integridad de Módulos
         run: |
-          python -m py_compile main.py
+          python -m py_compile src/main.py
           echo "Compilación y chequeo de sintaxis finalizado con éxito."
 
       - name: Simulación de Test de Endpoint y Prompt Template
@@ -43,7 +43,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python -c "
-          import main
+          from src import main
           print('FastAPI app instanciada:', main.app.title)
           assert 'Actúa como un especialista en seguridad en montaña' in main.SYSTEM_PROMPT
           print('System prompt validado con éxito.')

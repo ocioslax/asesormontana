@@ -29,8 +29,8 @@ jobs:
 
       - name: Verificar Integridad de Prompt y Modelos
         run: |
-          python -m py_compile main.py
-          python -c "import main; assert main.app is not None"
+          python -m py_compile src/main.py
+          python -c "from src import main; assert main.app is not None"
           echo "Validación de PR aprobada."
 
   docker-image-build:

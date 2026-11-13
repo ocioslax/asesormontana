@@ -27,14 +27,19 @@ El **Asesor de Seguridad en Alta Montaña** es una plataforma web completa dise�
 
 ```text
 .
-├── Grupo 1 - Prompt Maestro.md              # Especificación y requerimientos originales
-├── Grupo 1 - Prompt 1 - Construccion Codigo.md  # Prompt de reconstrucción y stack
+├── PROMPT_MAESTRO.md                        # Prompt de reconstrucción y stack
 ├── Grupo 1 - Prompt 2 - Upload y cicd.md    # Prompt de GitHub y despliegue en GCP
 ├── src/
 │   ├── __init__.py                          # Paquete Python del aplicativo
 │   ├── main.py                              # Backend FastAPI + Lógica Gemini + Open-Meteo
 │   ├── index.html                           # Frontend interactivo estilo Adminator
-│   └── planificador.html                    # Planificador detallado de ascenso
+│   ├── planificador.html                    # Planificador detallado de ascenso
+│   ├── prompts/
+│   │   ├── system_prompt.md                 # System Prompt obligatorio (3 apartados)
+│   │   └── user_prompt.md                   # Plantilla parametrizada de consulta
+│   └── test/
+│       ├── __init__.py
+│       └── test_golden_set.py               # Suite unitaria Golden Set (5 casos)
 ├── requirements.txt                         # Dependencias Python
 ├── Dockerfile                               # Imagen Docker optimizada (Python 3.11-slim / Cloud Run)
 ├── docker-compose.yml                       # Orquestación local para desarrollo
@@ -121,6 +126,35 @@ La interfaz web incluye botones de carga rápida ("Presets") para evaluar cumbre
 * **🇦🇷 Aconcagua (6.961 m):** La cumbre más alta de América.
 * **🇨🇱 Volcán Villarrica (2.847 m):** Estratovolcán activo en la Araucanía.
 * **🇫🇷 Mont Blanc (4.808 m):** Macizo de los Alpes.
+
+---
+
+## ✅ Pruebas Unitarias (Golden Set)
+
+El proyecto incluye una suite de **5 casos Golden Set** en [`src/test/test_golden_set.py`](src/test/test_golden_set.py) que valida de forma aislada (sin consumir cuota real de Gemini ni depender de red) los veredictos (`GO`, `NO_GO`, `CONDITIONAL`), la estructura obligatoria de 3 apartados, el manejo de datos incompletos y los guardrails de **Free Tier**.
+
+### 1. Consultar / Ejecutar toda la suite (en entorno local con `venv` activo)
+```bash
+python -m unittest discover -s src/test -v
+```
+
+### 2. Ejecutar un caso específico del Golden Set
+```bash
+python -m unittest src.test.test_golden_set.TestGoldenSet.test_case_1_go_optimal_window -v
+python -m unittest src.test.test_golden_set.TestGoldenSet.test_case_5_free_tier_guardrail_fallback -v
+```
+
+### 3. Ejecutar las pruebas dentro de Docker Compose
+```bash
+docker-compose exec mountain-safety-advisor python -m unittest discover -s src/test -v
+```
+
+### Casos incluidos en `TestGoldenSet`
+1. `test_case_1_go_optimal_window`: Ventana estable y horario matinal óptimo (`GO`).
+2. `test_case_2_no_go_extreme_storm`: Tormenta severa y alta acumulación reciente (`NO_GO`).
+3. `test_case_3_conditional_late_summit_schedule`: Ataque a cumbre tardío a las `15:30` (`CONDITIONAL`).
+4. `test_case_4_incomplete_route_and_technical_level`: Sin ruta ni nivel técnico, verifica la nota obligatoria (`CONDITIONAL`).
+5. `test_case_5_free_tier_guardrail_fallback`: Supera `GEMINI_MAX_RPM` y valida la contingencia `fallback-free-tier-guard` sin error HTTP.
 
 ---
 

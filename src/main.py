@@ -5,7 +5,11 @@ Sistema de análisis nivometeorológico y viabilidad Go/No Go con Google Gemini 
 
 import os
 import json
+import time
+import hashlib
 import logging
+import threading
+from collections import deque
 from typing import Optional, Dict, Any, List
 from datetime import datetime, date, timedelta
 import asyncio
@@ -788,6 +792,120 @@ async def fetch_openmeteo_weather(
             route=route
         )
 
+class GeminiQuotaGuard:
+    """
+    Controlador thread-safe de consumo para no superar los límites del Free Tier de Google Gemini:
+    - Límite por minuto (RPM) con ventana deslizante de 60s.
+    - Límite diario (RPD) con reinicio automático al cambiar de día UTC.
+    - Cooldown automático ante errores 429 / ResourceExhausted.
+    - Caché en memoria con TTL para evitar llamadas repetidas idénticas.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.max_rpm = int(os.getenv("GEMINI_MAX_RPM", "10"))
+        self.max_rpd = int(os.getenv("GEMINI_MAX_RPD", "200"))
+        self.max_output_tokens = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "2048"))
+        self.max_input_chars = int(os.getenv("GEMINI_MAX_INPUT_CHARS", "24000"))
+        self.cache_ttl_seconds = int(os.getenv("GEMINI_CACHE_TTL_SECONDS", "900"))
+        self.cooldown_seconds = int(os.getenv("GEMINI_COOLDOWN_ON_429_SECONDS", "60"))
+
+        self._minute_requests: deque[float] = deque()
+        self._daily_date: date = datetime.utcnow().date()
+        self._daily_count: int = 0
+        self._cooldown_until: float = 0.0
+        self._cache: Dict[str, Dict[str, Any]] = {}
+
+    def _reset_windows_locked(self, now: float) -> None:
+        today_utc = datetime.utcnow().date()
+        if today_utc != self._daily_date:
+            self._daily_date = today_utc
+            self._daily_count = 0
+        cutoff = now - 60.0
+        while self._minute_requests and self._minute_requests[0] < cutoff:
+            self._minute_requests.popleft()
+
+    @staticmethod
+    def _make_cache_key(prompt: str, system_instruction: str) -> str:
+        digest = hashlib.sha256(f"{system_instruction}\n---\n{prompt}".encode("utf-8")).hexdigest()
+        return digest
+
+    def get_cached(self, prompt: str, system_instruction: str) -> Optional[Dict[str, Any]]:
+        if self.cache_ttl_seconds <= 0:
+            return None
+        key = self._make_cache_key(prompt, system_instruction)
+        now = time.monotonic()
+        with self._lock:
+            entry = self._cache.get(key)
+            if not entry:
+                return None
+            if now - entry["created_at"] > self.cache_ttl_seconds:
+                del self._cache[key]
+                return None
+            return dict(entry["result"])
+
+    def set_cached(self, prompt: str, system_instruction: str, result: Dict[str, Any]) -> None:
+        if self.cache_ttl_seconds <= 0 or result.get("is_simulation"):
+            return
+        key = self._make_cache_key(prompt, system_instruction)
+        now = time.monotonic()
+        with self._lock:
+            # Limitar tamaño máximo de caché en memoria a 100 entradas
+            if len(self._cache) >= 100:
+                oldest_key = min(self._cache, key=lambda k: self._cache[k]["created_at"])
+                del self._cache[oldest_key]
+            self._cache[key] = {"created_at": now, "result": dict(result)}
+
+    def try_acquire(self) -> Optional[str]:
+        """
+        Verifica si se puede realizar una llamada a Gemini dentro del Free Tier.
+        Retorna None si está permitido y registra el uso; o un mensaje con el motivo del bloqueo.
+        """
+        now = time.monotonic()
+        with self._lock:
+            self._reset_windows_locked(now)
+            if now < self._cooldown_until:
+                wait_s = int(self._cooldown_until - now) + 1
+                return f"Cooldown activo por límite 429 de Gemini ({wait_s}s restantes)."
+            if self.max_rpd > 0 and self._daily_count >= self.max_rpd:
+                return f"Límite diario Free Tier alcanzado ({self._daily_count}/{self.max_rpd} RPD)."
+            if self.max_rpm > 0 and len(self._minute_requests) >= self.max_rpm:
+                return f"Límite por minuto Free Tier alcanzado ({len(self._minute_requests)}/{self.max_rpm} RPM)."
+
+            self._minute_requests.append(now)
+            self._daily_count += 1
+            return None
+
+    def trigger_cooldown(self) -> None:
+        with self._lock:
+            self._cooldown_until = time.monotonic() + max(1, self.cooldown_seconds)
+
+    def get_status(self) -> Dict[str, Any]:
+        now = time.monotonic()
+        with self._lock:
+            self._reset_windows_locked(now)
+            return {
+                "rpm_used": len(self._minute_requests),
+                "rpm_limit": self.max_rpm,
+                "rpd_used": self._daily_count,
+                "rpd_limit": self.max_rpd,
+                "max_output_tokens": self.max_output_tokens,
+                "max_input_chars": self.max_input_chars,
+                "cache_ttl_seconds": self.cache_ttl_seconds,
+                "cache_entries": len(self._cache),
+                "cooldown_active": now < self._cooldown_until,
+                "cooldown_remaining_seconds": max(0, int(self._cooldown_until - now)) if now < self._cooldown_until else 0,
+            }
+
+
+gemini_quota_guard = GeminiQuotaGuard()
+
+
+def _is_quota_or_rate_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(token in msg for token in ("429", "resourceexhausted", "resource_exhausted", "quota", "rate limit", "too many requests"))
+
+
 def call_gemini_pro(
     prompt: str,
     system_instruction: str,
@@ -796,11 +914,11 @@ def call_gemini_pro(
     weather_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Envía el prompt al modelo Gemini Pro utilizando el SDK oficial google-generativeai.
-    Gestiona compatibilidad de versiones de modelos y contingencia experta dinámica.
+    Envía el prompt a Google Gemini respetando las restricciones de Free Tier
+    (caché TTL, RPM/RPD, tope de tokens, modelos Flash prioritarios y contingencia ante 429).
     """
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    
+
     if not api_key:
         logger.warning("GEMINI_API_KEY no encontrada en el entorno. Generando informe en modo contingencia.")
         return {
@@ -809,68 +927,88 @@ def call_gemini_pro(
             "is_simulation": True
         }
 
+    # 1. Revisar caché en memoria para evitar llamadas duplicadas
+    cached = gemini_quota_guard.get_cached(prompt, system_instruction)
+    if cached:
+        logger.info(f"Respuesta servida desde caché Free Tier para '{mountain_name}' ({cached.get('model')}).")
+        return cached
+
+    # 2. Verificar cuota local Free Tier (RPM, RPD, Cooldown)
+    block_reason = gemini_quota_guard.try_acquire()
+    if block_reason:
+        logger.warning(f"Protección Free Tier activada para '{mountain_name}': {block_reason}")
+        simulated_text = simulate_expert_response(mountain_name, altitude, weather_data)
+        notice = (
+            f"> [!WARNING]\n"
+            f"> **Protección Free Tier Activa:** {block_reason} "
+            f"Se muestra el análisis generado por el motor de contingencia para **{mountain_name}**.\n\n"
+        )
+        return {
+            "text": notice + simulated_text,
+            "model": "fallback-free-tier-guard",
+            "is_simulation": True
+        }
+
+    # 3. Acotar tamaño del prompt de entrada para respetar TPM del Free Tier
+    safe_prompt = prompt
+    if gemini_quota_guard.max_input_chars > 0 and len(safe_prompt) > gemini_quota_guard.max_input_chars:
+        logger.warning(
+            f"Prompt truncado de {len(safe_prompt)} a {gemini_quota_guard.max_input_chars} caracteres "
+            f"para respetar el límite de tokens de entrada (TPM Free Tier)."
+        )
+        safe_prompt = safe_prompt[:gemini_quota_guard.max_input_chars] + "\n\n[Contexto truncado por límite Free Tier]"
+
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
 
-        # Candidatos prioritarios compatibles con la versión actual de la API de Gemini
+        # Priorizar modelos Flash (mayor cuota gratuita en RPM/RPD que Pro) y evitar list_models() masivo
         model_candidates = [
-            "gemini-3.8-flash",
-            "gemini-pro-latest",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
             "gemini-flash-latest",
             "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "gemini-pro"
         ]
 
+        generation_config = {
+            "max_output_tokens": gemini_quota_guard.max_output_tokens,
+            "temperature": 0.3,
+        }
+
         last_error = None
-        
+
         for candidate in model_candidates:
             try:
                 try:
                     model = genai.GenerativeModel(
                         model_name=candidate,
-                        system_instruction=system_instruction
+                        system_instruction=system_instruction,
+                        generation_config=generation_config,
                     )
-                    full_prompt = prompt
+                    full_prompt = safe_prompt
                 except TypeError:
                     model = genai.GenerativeModel(model_name=candidate)
-                    full_prompt = f"INSTRUCCIÓN DEL SISTEMA:\n{system_instruction}\n\n---\nSOLICITUD:\n{prompt}"
+                    full_prompt = f"INSTRUCCIÓN DEL SISTEMA:\n{system_instruction}\n\n---\nSOLICITUD:\n{safe_prompt}"
 
                 response = model.generate_content(full_prompt)
                 if response and response.text:
-                    logger.info(f"¡Éxito! Respuesta generada directamente por Google Gemini ({candidate}) para '{mountain_name}'")
-                    return {
+                    logger.info(f"¡Éxito! Respuesta generada por Google Gemini ({candidate}) para '{mountain_name}'")
+                    result = {
                         "text": response.text,
                         "model": candidate,
                         "is_simulation": False
                     }
+                    gemini_quota_guard.set_cached(prompt, system_instruction, result)
+                    return result
             except Exception as e:
                 last_error = e
+                if _is_quota_or_rate_error(e):
+                    gemini_quota_guard.trigger_cooldown()
+                    logger.warning(f"Cuota/Rate Limit (429) detectado en '{candidate}'. Activando cooldown y abortando reintentos.")
+                    break
                 logger.debug(f"Candidato '{candidate}' no disponible: {e}")
 
-        # Si ninguno de la lista directa respondió, intentar auto-descubrimiento en list_models()
-        try:
-            for m in genai.list_models():
-                if "generateContent" in m.supported_generation_methods:
-                    cand_name = m.name.replace("models/", "")
-                    try:
-                        model = genai.GenerativeModel(model_name=cand_name)
-                        full_prompt = f"INSTRUCCIÓN DEL SISTEMA:\n{system_instruction}\n\n---\nSOLICITUD:\n{prompt}"
-                        response = model.generate_content(full_prompt)
-                        if response and response.text:
-                            logger.info(f"Respuesta generada mediante modelo auto-descubierto: {cand_name}")
-                            return {
-                                "text": response.text,
-                                "model": cand_name,
-                                "is_simulation": False
-                            }
-                    except Exception:
-                        continue
-        except Exception as e_discover:
-            logger.warning(f"Fallo en auto-descubrimiento de modelos: {e_discover}")
-
-        raise RuntimeError(f"No fue posible invocar ningún modelo de Gemini: {last_error}")
+        raise RuntimeError(f"No fue posible invocar Gemini dentro del Free Tier: {last_error}")
 
     except Exception as err:
         logger.error(f"Error al conectar con la API de Google Gemini: {err}")
@@ -1081,12 +1219,13 @@ async def serve_planner():
 
 @app.get("/api/health")
 async def health_check():
-    """Endpoint de estado y diagnóstico del servicio."""
+    """Endpoint de estado, diagnóstico del servicio y consumo Free Tier de Gemini."""
     gemini_key_set = bool(os.getenv("GEMINI_API_KEY", "").strip())
     return {
         "status": "healthy",
         "service": "Asesor de Seguridad en Alta Montaña",
         "gemini_api_configured": gemini_key_set,
+        "gemini_quota": gemini_quota_guard.get_status(),
         "timestamp": datetime.utcnow().isoformat()
     }
 
